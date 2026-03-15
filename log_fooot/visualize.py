@@ -121,6 +121,7 @@ LANG = {
         "ua_table_ua": "User-Agent",
         "ua_table_count": "Requests",
         "panel_title_with_count": "Visitor IPs for this page ({count})",
+        "ip_panel_path_label": "Path",
         "session_label": "Session ",
         "time_locale": "en-US",
     },
@@ -142,6 +143,7 @@ LANG = {
         "toggle_collapse_title": "メニューを折りたたむ",
         "toggle_expand_title": "メニューを開く",
         "ip_panel_title": "閲覧した IP",
+        "ip_panel_path_label": "パス",
         "ip_panel_empty": "カードをクリックすると、このページを訪問した IP が表示されます。",
         "ip_panel_hint": "IP をクリックするとその閲覧者の辿った線を強調表示します。",
         "ip_filter_placeholder": "IP でフィルタ...",
@@ -259,6 +261,7 @@ def render_html(
     lang_strings_json = json.dumps(
         {
             "panelTitleWithCount": t["panel_title_with_count"],
+            "panelPathLabel": t["ip_panel_path_label"],
             "sessionLabel": t["session_label"],
             "toggleClose": t["toggle_close"],
             "toggleCollapseTitle": t["toggle_collapse_title"],
@@ -415,7 +418,8 @@ def render_html(
   .ip-panel-empty {{ font-size: 0.8rem; color: #565f89; line-height: 1.5; padding: 8px 0; }}
   .ip-panel-content {{ display: none; flex: 1; min-height: 0; flex-direction: column; }}
   .ip-panel-content.visible {{ display: flex; }}
-  .ip-panel h3 {{ font-size: 0.875rem; margin: 0 0 8px 0; color: #7aa2f7; flex-shrink: 0; }}
+  .ip-panel h3 {{ font-size: 0.875rem; margin: 0 0 4px 0; color: #7aa2f7; flex-shrink: 0; }}
+  .ip-panel-path {{ font-size: 0.75rem; color: #565f89; margin: 0 0 8px 0; word-break: break-all; flex-shrink: 0; }}
   .ip-panel .hint {{ font-size: 0.75rem; color: #565f89; margin-bottom: 8px; flex-shrink: 0; }}
   .ip-filter-wrap {{ margin-bottom: 8px; }}
   .ip-filter {{
@@ -457,6 +461,7 @@ def render_html(
   .ip-clear-btn:hover {{ background: #565f89; color: #c0caf5; }}
   .ip-flow {{ margin-top: 12px; padding-top: 12px; border-top: 1px solid #414868; }}
   .ip-flow h4 {{ font-size: 0.8rem; margin: 0 0 8px 0; color: #bb9af7; }}
+  .ip-clear-btn-below-flow {{ margin-top: 12px; }}
   .ip-flow-session {{ margin-bottom: 12px; }}
   .ip-flow-session:last-child {{ margin-bottom: 0; }}
   .ip-flow-steps {{ display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 0.75rem; font-family: ui-monospace, monospace; }}
@@ -520,6 +525,7 @@ def render_html(
   <p class="ip-panel-empty" id="ip-panel-empty">{ip_panel_empty}</p>
   <div class="ip-panel-content" id="ip-panel-content">
     <h3 id="ip-panel-title">{ip_panel_title}</h3>
+    <p class="ip-panel-path" id="ip-panel-path"></p>
     <p class="hint" id="ip-panel-hint">{ip_panel_hint}</p>
     <div class="ip-filter-wrap">
       <input type="text" class="ip-filter" id="ip-filter" placeholder="{ip_filter_placeholder}" autocomplete="off"/>
@@ -528,6 +534,7 @@ def render_html(
     <div class="ip-flow" id="ip-flow" style="display:none">
       <h4>{ip_flow_title}</h4>
       <div id="ip-flow-body"></div>
+      <button type="button" class="ip-clear-btn ip-clear-btn-below-flow" style="display:none">{ip_clear_btn}</button>
     </div>
     <button type="button" class="ip-clear-btn" id="ip-clear-btn" style="display:none">{ip_clear_btn}</button>
   </div>
@@ -551,11 +558,12 @@ def render_html(
   var ipPanelEmpty = document.getElementById('ip-panel-empty');
   var ipPanelContent = document.getElementById('ip-panel-content');
   var panelTitle = document.getElementById('ip-panel-title');
+  var ipPanelPath = document.getElementById('ip-panel-path');
   var ipListEl = document.getElementById('ip-list');
   var ipFilterEl = document.getElementById('ip-filter');
   var ipFlowEl = document.getElementById('ip-flow');
   var ipFlowBody = document.getElementById('ip-flow-body');
-  var clearBtn = document.getElementById('ip-clear-btn');
+  var clearBtns = document.querySelectorAll('.ip-clear-btn');
   var selectedIp = null;
   var currentIps = [];
 
@@ -782,7 +790,7 @@ def render_html(
 
   function selectIp(ip) {{
     selectedIp = ip;
-    if (clearBtn) clearBtn.style.display = 'block';
+    clearBtns.forEach(function(btn) {{ btn.style.display = 'block'; }});
     renderIpFlow(ip);
     document.querySelectorAll('.ip-item').forEach(function(el) {{
       el.classList.toggle('ip-selected', el.textContent.trim() === ip);
@@ -798,15 +806,17 @@ def render_html(
   function showIpPanelEmpty() {{
     if (ipPanelEmpty) ipPanelEmpty.style.display = '';
     if (ipPanelContent) ipPanelContent.classList.remove('visible');
+    if (ipPanelPath) ipPanelPath.textContent = '';
   }}
-  function showIpPanelContent() {{
+  function showIpPanelContent(path) {{
     if (ipPanelEmpty) ipPanelEmpty.style.display = 'none';
     if (ipPanelContent) ipPanelContent.classList.add('visible');
+    if (ipPanelPath) ipPanelPath.textContent = (langStrings.panelPathLabel || 'Path') + ': ' + (path || '/');
   }}
 
   function clearIpSelection() {{
     selectedIp = null;
-    if (clearBtn) clearBtn.style.display = 'none';
+    clearBtns.forEach(function(btn) {{ btn.style.display = 'none'; }});
     if (ipFlowEl) ipFlowEl.style.display = 'none';
     if (ipFlowBody) ipFlowBody.innerHTML = '';
     document.querySelectorAll('.ip-item').forEach(function(el) {{ el.classList.remove('ip-selected'); }});
@@ -816,7 +826,7 @@ def render_html(
     }});
   }}
 
-  if (clearBtn) clearBtn.addEventListener('click', function(e) {{ e.stopPropagation(); clearIpSelection(); }});
+  clearBtns.forEach(function(btn) {{ btn.addEventListener('click', function(e) {{ e.stopPropagation(); clearIpSelection(); }}); }});
 
   function renderIpList(ips, filterStr) {{
     var q = (filterStr || '').trim().toLowerCase();
@@ -843,7 +853,8 @@ def render_html(
   }}
 
   cards.forEach(function(card) {{
-    card.addEventListener('click', function() {{
+    card.addEventListener('click', function(e) {{
+      e.stopPropagation();
       var path = card.getAttribute('data-path') || '/';
       var ips = pathToIps[path] || [];
       card.classList.add('card-selected');
@@ -853,7 +864,7 @@ def render_html(
         clearIpSelection();
         return;
       }}
-      showIpPanelContent();
+      showIpPanelContent(path);
       currentIps = ips;
       if (ipFilterEl) ipFilterEl.value = '';
       panelTitle.textContent = (langStrings.panelTitleWithCount || 'Visitor IPs for this page ({count})').replace('{{count}}', ips.length);

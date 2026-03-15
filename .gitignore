@@ -19,7 +19,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-result/
+# result フォルダは残し、中身のみ無視
+result/*
+!result/.gitkeep
 
 # Virtual env
 .venv/
