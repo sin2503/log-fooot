@@ -117,6 +117,7 @@ LANG = {
         "ip_panel_hint": "Click an IP to highlight that visitor's path.",
         "ip_filter_placeholder": "Filter by IP...",
         "ip_flow_title": "This IP's path",
+        "ip_flow_google_link": "Search on Google",
         "ip_clear_btn": "Clear selection",
         "ua_table_ua": "User-Agent",
         "ua_table_count": "Requests",
@@ -148,6 +149,7 @@ LANG = {
         "ip_panel_hint": "IP をクリックするとその閲覧者の辿った線を強調表示します。",
         "ip_filter_placeholder": "IP でフィルタ...",
         "ip_flow_title": "この IP の閲覧の流れ",
+        "ip_flow_google_link": "Googleで検索",
         "ip_clear_btn": "選択を解除",
         "ua_table_ua": "User-Agent",
         "ua_table_count": "リクエスト数",
@@ -267,6 +269,7 @@ def render_html(
             "toggleCollapseTitle": t["toggle_collapse_title"],
             "toggleExpandTitle": t["toggle_expand_title"],
             "timeLocale": t["time_locale"],
+            "ipFlowGoogleLink": t["ip_flow_google_link"],
         },
         ensure_ascii=False,
     )
@@ -460,7 +463,10 @@ def render_html(
   }}
   .ip-clear-btn:hover {{ background: #565f89; color: #c0caf5; }}
   .ip-flow {{ margin-top: 12px; padding-top: 12px; border-top: 1px solid #414868; }}
-  .ip-flow h4 {{ font-size: 0.8rem; margin: 0 0 8px 0; color: #bb9af7; }}
+  .ip-flow h4 {{ font-size: 0.8rem; margin: 0 0 8px 0; color: #bb9af7; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }}
+  .ip-flow-selected-ip {{ font-weight: normal; color: #c0caf5; font-family: ui-monospace, monospace; }}
+  .ip-flow-google-link {{ font-size: 0.75rem; color: #7aa2f7; }}
+  .ip-flow-google-link:hover {{ text-decoration: underline; }}
   .ip-clear-btn-below-flow {{ margin-top: 8px; margin-bottom: 12px; }}
   .ip-flow-session {{ margin-bottom: 12px; }}
   .ip-flow-session:last-child {{ margin-bottom: 0; }}
@@ -532,7 +538,7 @@ def render_html(
     </div>
     <div class="ip-list" id="ip-list"></div>
     <div class="ip-flow" id="ip-flow" style="display:none">
-      <h4>{ip_flow_title}</h4>
+      <h4>{ip_flow_title}<span id="ip-flow-selected-ip" class="ip-flow-selected-ip"></span><a id="ip-flow-google-link" class="ip-flow-google-link" target="_blank" rel="noopener noreferrer" style="display:none"></a></h4>
       <button type="button" class="ip-clear-btn ip-clear-btn-below-flow" style="display:none">{ip_clear_btn}</button>
       <div id="ip-flow-body"></div>
     </div>
@@ -563,6 +569,8 @@ def render_html(
   var ipFilterEl = document.getElementById('ip-filter');
   var ipFlowEl = document.getElementById('ip-flow');
   var ipFlowBody = document.getElementById('ip-flow-body');
+  var ipFlowSelectedIp = document.getElementById('ip-flow-selected-ip');
+  var ipFlowGoogleLink = document.getElementById('ip-flow-google-link');
   var clearBtns = document.querySelectorAll('.ip-clear-btn');
   var selectedIp = null;
   var currentIps = [];
@@ -790,6 +798,12 @@ def render_html(
 
   function selectIp(ip) {{
     selectedIp = ip;
+    if (ipFlowSelectedIp) ipFlowSelectedIp.textContent = ' (' + ip + ')';
+    if (ipFlowGoogleLink) {{
+      ipFlowGoogleLink.href = 'https://www.google.com/search?q=' + encodeURIComponent(ip);
+      ipFlowGoogleLink.textContent = langStrings.ipFlowGoogleLink || 'Search on Google';
+      ipFlowGoogleLink.style.display = '';
+    }}
     clearBtns.forEach(function(btn) {{ btn.style.display = 'block'; }});
     renderIpFlow(ip);
     document.querySelectorAll('.ip-item').forEach(function(el) {{
@@ -816,6 +830,8 @@ def render_html(
 
   function clearIpSelection() {{
     selectedIp = null;
+    if (ipFlowSelectedIp) ipFlowSelectedIp.textContent = '';
+    if (ipFlowGoogleLink) {{ ipFlowGoogleLink.href = ''; ipFlowGoogleLink.textContent = ''; ipFlowGoogleLink.style.display = 'none'; }}
     clearBtns.forEach(function(btn) {{ btn.style.display = 'none'; }});
     if (ipFlowEl) ipFlowEl.style.display = 'none';
     if (ipFlowBody) ipFlowBody.innerHTML = '';
