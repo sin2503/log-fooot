@@ -461,7 +461,7 @@ def render_html(
   .ip-clear-btn:hover {{ background: #565f89; color: #c0caf5; }}
   .ip-flow {{ margin-top: 12px; padding-top: 12px; border-top: 1px solid #414868; }}
   .ip-flow h4 {{ font-size: 0.8rem; margin: 0 0 8px 0; color: #bb9af7; }}
-  .ip-clear-btn-below-flow {{ margin-top: 12px; }}
+  .ip-clear-btn-below-flow {{ margin-top: 8px; margin-bottom: 12px; }}
   .ip-flow-session {{ margin-bottom: 12px; }}
   .ip-flow-session:last-child {{ margin-bottom: 0; }}
   .ip-flow-steps {{ display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 0.75rem; font-family: ui-monospace, monospace; }}
@@ -533,8 +533,8 @@ def render_html(
     <div class="ip-list" id="ip-list"></div>
     <div class="ip-flow" id="ip-flow" style="display:none">
       <h4>{ip_flow_title}</h4>
-      <div id="ip-flow-body"></div>
       <button type="button" class="ip-clear-btn ip-clear-btn-below-flow" style="display:none">{ip_clear_btn}</button>
+      <div id="ip-flow-body"></div>
     </div>
     <button type="button" class="ip-clear-btn" id="ip-clear-btn" style="display:none">{ip_clear_btn}</button>
   </div>
