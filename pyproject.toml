@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "log-fooot"
+version = "0.1.0"
+description = "Parse nginx COMBINED logs by IP and visualize page transitions as cards and lines"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Your Name" }]
+keywords = ["nginx", "log", "access-log", "visualization", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: Log Analysis",
+]
+
+[project.scripts]
+log-fooot = "log_fooot.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["log_fooot*"]
