@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from urllib.parse import unquote
+
 from .log_parser import LogEntry, parse_file
 
 
@@ -29,10 +31,14 @@ class Session:
 
 
 def _normalize_path(path: str) -> str:
-    """ログの path を正規化（クエリは捨てる）。"""
+    """ログの path を正規化（クエリは捨てる）。percent エンコードは UTF-8 でデコードする。"""
     if "?" in path:
         path = path.split("?")[0]
     path = path or "/"
+    try:
+        path = unquote(path, encoding="utf-8")
+    except Exception:
+        pass
     if path != "/" and path.endswith("/"):
         path = path.rstrip("/")
     return path

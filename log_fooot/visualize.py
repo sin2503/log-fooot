@@ -113,6 +113,7 @@ LANG = {
         "toggle_collapse_title": "Collapse menu",
         "toggle_expand_title": "Expand menu",
         "ip_panel_title": "Visitor IPs",
+        "ip_panel_empty": "Click a card to show visitor IPs for that page.",
         "ip_panel_hint": "Click an IP to highlight that visitor's path.",
         "ip_filter_placeholder": "Filter by IP...",
         "ip_flow_title": "This IP's path",
@@ -141,6 +142,7 @@ LANG = {
         "toggle_collapse_title": "メニューを折りたたむ",
         "toggle_expand_title": "メニューを開く",
         "ip_panel_title": "閲覧した IP",
+        "ip_panel_empty": "カードをクリックすると、このページを訪問した IP が表示されます。",
         "ip_panel_hint": "IP をクリックするとその閲覧者の辿った線を強調表示します。",
         "ip_filter_placeholder": "IP でフィルタ...",
         "ip_flow_title": "この IP の閲覧の流れ",
@@ -285,6 +287,7 @@ def render_html(
     ip_filter_placeholder = t["ip_filter_placeholder"]
     ip_flow_title = t["ip_flow_title"]
     ip_clear_btn = t["ip_clear_btn"]
+    ip_panel_empty = t["ip_panel_empty"]
     ua_table_ua = t["ua_table_ua"]
     ua_table_count = t["ua_table_count"]
 
@@ -361,16 +364,19 @@ def render_html(
   .exclude-btns button {{ padding: 4px 10px; font-size: 0.75rem; background: #414868; color: #a9b1d6; border: none; border-radius: 4px; cursor: pointer; }}
   .exclude-btns button:hover {{ background: #565f89; color: #c0caf5; }}
   .exclude-btns input[type=file] {{ display: none; }}
-  .main {{ flex: 1; min-width: 0; padding: 16px; overflow: auto; display: flex; flex-direction: column; }}
-  .main h1 {{ font-size: 1.25rem; margin-bottom: 8px; flex-shrink: 0; }}
-  .meta {{ font-size: 0.875rem; color: #565f89; margin-bottom: 12px; flex-shrink: 0; }}
-  .tabs {{ display: flex; gap: 4px; margin-bottom: 16px; flex-shrink: 0; }}
+  .main {{ flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }}
+  .main-inner {{ flex: 1; display: flex; min-height: 0; overflow: hidden; }}
+  .main-left {{ flex: 1; min-width: 0; overflow: auto; padding: 16px; }}
+  .main-right {{ width: 320px; flex-shrink: 0; border-left: 1px solid #414868; background: #24283b; overflow: auto; padding: 12px; }}
+  .main-left h1 {{ font-size: 1.25rem; margin-bottom: 8px; }}
+  .meta {{ font-size: 0.875rem; color: #565f89; margin-bottom: 12px; }}
+  .tabs {{ display: flex; gap: 4px; margin-bottom: 16px; }}
   .tab-btn {{ padding: 8px 16px; font-size: 0.875rem; background: #414868; color: #a9b1d6; border: none; border-radius: 6px; cursor: pointer; }}
   .tab-btn:hover {{ background: #565f89; color: #c0caf5; }}
   .tab-btn.active {{ background: #7aa2f7; color: #1a1b26; }}
-  .tab-pane {{ display: none; flex: 1; min-height: 0; overflow: auto; }}
+  .tab-pane {{ display: none; min-height: 0; }}
   .tab-pane.active {{ display: block; }}
-  .layout {{ display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }}
+  .layout {{ display: flex; justify-content: flex-start; align-items: flex-start; }}
   .ua-table {{ width: 100%; border-collapse: collapse; font-size: 0.8rem; }}
   .ua-table th, .ua-table td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #414868; }}
   .ua-table th {{ color: #7aa2f7; }}
@@ -405,16 +411,12 @@ def render_html(
   .card-title {{ font-size: 0.85rem; color: #a9b1d6; line-height: 1.3; }}
   svg {{ position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }}
   svg line {{ pointer-events: stroke; }}
-  .ip-panel {{
-    min-width: 240px;
-    max-width: 320px;
-    background: #24283b;
-    border: 1px solid #414868;
-    border-radius: 8px;
-    padding: 12px;
-  }}
-  .ip-panel h3 {{ font-size: 0.875rem; margin: 0 0 8px 0; color: #7aa2f7; }}
-  .ip-panel .hint {{ font-size: 0.75rem; color: #565f89; margin-bottom: 8px; }}
+  .ip-panel {{ height: 100%; display: flex; flex-direction: column; min-height: 0; }}
+  .ip-panel-empty {{ font-size: 0.8rem; color: #565f89; line-height: 1.5; padding: 8px 0; }}
+  .ip-panel-content {{ display: none; flex: 1; min-height: 0; flex-direction: column; }}
+  .ip-panel-content.visible {{ display: flex; }}
+  .ip-panel h3 {{ font-size: 0.875rem; margin: 0 0 8px 0; color: #7aa2f7; flex-shrink: 0; }}
+  .ip-panel .hint {{ font-size: 0.75rem; color: #565f89; margin-bottom: 8px; flex-shrink: 0; }}
   .ip-filter-wrap {{ margin-bottom: 8px; }}
   .ip-filter {{
     width: 100%;
@@ -484,6 +486,8 @@ def render_html(
 </div>
 <div class="sidebar-resizer" id="sidebar-resizer"></div>
 <div class="main">
+<div class="main-inner">
+<div class="main-left">
 <h1>{title}</h1>
 <p class="meta">{meta_pages}: {len(all_paths)} / {meta_sessions}: {len(sessions)} / {meta_edges}: {len(edges_with_ips)}</p>
 <div class="tabs">
@@ -499,19 +503,6 @@ def render_html(
 </svg>
 {"".join(cards_html)}
 </div>
-<div class="ip-panel" id="ip-panel" style="display:none">
-  <h3 id="ip-panel-title">{ip_panel_title}</h3>
-  <p class="hint" id="ip-panel-hint">{ip_panel_hint}</p>
-  <div class="ip-filter-wrap">
-    <input type="text" class="ip-filter" id="ip-filter" placeholder="{ip_filter_placeholder}" autocomplete="off"/>
-  </div>
-  <div class="ip-list" id="ip-list"></div>
-  <div class="ip-flow" id="ip-flow" style="display:none">
-    <h4>{ip_flow_title}</h4>
-    <div id="ip-flow-body"></div>
-  </div>
-  <button type="button" class="ip-clear-btn" id="ip-clear-btn" style="display:none">{ip_clear_btn}</button>
-</div>
 </div>
 </div>
 <div id="tab-ua" class="tab-pane">
@@ -522,6 +513,25 @@ def render_html(
 </div>
 <div id="tab-time" class="tab-pane">
   <div class="time-chart" id="time-chart"></div>
+</div>
+</div>
+<div class="main-right">
+<div class="ip-panel" id="ip-panel">
+  <p class="ip-panel-empty" id="ip-panel-empty">{ip_panel_empty}</p>
+  <div class="ip-panel-content" id="ip-panel-content">
+    <h3 id="ip-panel-title">{ip_panel_title}</h3>
+    <p class="hint" id="ip-panel-hint">{ip_panel_hint}</p>
+    <div class="ip-filter-wrap">
+      <input type="text" class="ip-filter" id="ip-filter" placeholder="{ip_filter_placeholder}" autocomplete="off"/>
+    </div>
+    <div class="ip-list" id="ip-list"></div>
+    <div class="ip-flow" id="ip-flow" style="display:none">
+      <h4>{ip_flow_title}</h4>
+      <div id="ip-flow-body"></div>
+    </div>
+    <button type="button" class="ip-clear-btn" id="ip-clear-btn" style="display:none">{ip_clear_btn}</button>
+  </div>
+</div>
 </div>
 </div>
 </div>
@@ -538,6 +548,8 @@ def render_html(
   var lines = document.querySelectorAll('.transition-line');
   var cards = document.querySelectorAll('.card');
   var panel = document.getElementById('ip-panel');
+  var ipPanelEmpty = document.getElementById('ip-panel-empty');
+  var ipPanelContent = document.getElementById('ip-panel-content');
   var panelTitle = document.getElementById('ip-panel-title');
   var ipListEl = document.getElementById('ip-list');
   var ipFilterEl = document.getElementById('ip-filter');
@@ -783,6 +795,15 @@ def render_html(
     }});
   }}
 
+  function showIpPanelEmpty() {{
+    if (ipPanelEmpty) ipPanelEmpty.style.display = '';
+    if (ipPanelContent) ipPanelContent.classList.remove('visible');
+  }}
+  function showIpPanelContent() {{
+    if (ipPanelEmpty) ipPanelEmpty.style.display = 'none';
+    if (ipPanelContent) ipPanelContent.classList.add('visible');
+  }}
+
   function clearIpSelection() {{
     selectedIp = null;
     if (clearBtn) clearBtn.style.display = 'none';
@@ -828,11 +849,11 @@ def render_html(
       card.classList.add('card-selected');
       cards.forEach(function(c) {{ if (c !== card) c.classList.remove('card-selected'); }});
       if (ips.length === 0) {{
-        panel.style.display = 'none';
+        showIpPanelEmpty();
         clearIpSelection();
         return;
       }}
-      panel.style.display = 'block';
+      showIpPanelContent();
       currentIps = ips;
       if (ipFilterEl) ipFilterEl.value = '';
       panelTitle.textContent = (langStrings.panelTitleWithCount || 'Visitor IPs for this page ({count})').replace('{{count}}', ips.length);
@@ -850,7 +871,7 @@ def render_html(
 
   document.addEventListener('click', function(e) {{
     if (panel.contains(e.target) || e.target.closest('.card')) return;
-    panel.style.display = 'none';
+    showIpPanelEmpty();
     cards.forEach(function(c) {{ c.classList.remove('card-selected'); }});
     clearIpSelection();
   }});

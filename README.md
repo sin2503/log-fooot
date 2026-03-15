@@ -17,6 +17,7 @@ nginx の COMBINED アクセスログを IP ごとに解析し、サイト内の
 
 - Python 3.9+
 - （クロール時）対象サイトへの HTTP アクセス
+- （ログ解析時）指定するログファイルへの読取権限（`/var/log/nginx/` は root 所有のため、ログを `/tmp` にコピーするか、実行ユーザを `adm` 等に追加する運用を推奨）
 
 ## インストール
 
@@ -26,6 +27,26 @@ cd log-fooot
 pip install -r requirements.txt
 # または
 pip install -e .
+```
+
+### 仮想環境を使う場合（Ubuntu 24.04 など）
+
+システムの Python が PEP 668 で保護されている場合は、venv を使います。
+
+**Debian/Ubuntu で venv が未インストールの場合（ensurepip is not available と出る場合）:**
+
+```bash
+sudo apt install python3.12-venv   # または python3-venv
+```
+
+**その後:**
+
+```bash
+cd log-fooot
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+# 実行時は .venv/bin/python -m log_fooot ... を使う
+.venv/bin/python -m log_fooot --base-url "https://example.com" --log-path /var/log/nginx/access.log --output-dir ./result
 ```
 
 ## 使い方
@@ -103,3 +124,7 @@ python -m log_fooot --analyze-only --log-path ./sample_access.log --output-dir .
 ## ライセンス
 
 MIT License（[LICENSE](LICENSE)）
+
+## 免責
+
+本ソフトウェアは「現状のまま」提供されます。利用に伴う不具合・損害等について、作者は一切の責任を負いません。

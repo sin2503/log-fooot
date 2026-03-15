@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from urllib.parse import urljoin, urlparse, urlunparse
+from urllib.parse import unquote, urljoin, urlparse, urlunparse
 from pathlib import Path
 
 import requests
@@ -42,6 +42,10 @@ def _same_origin(base_netloc: str, url: str) -> bool:
 def _path_from_url(url: str) -> str:
     parsed = urlparse(url)
     path = parsed.path or "/"
+    try:
+        path = unquote(path, encoding="utf-8")
+    except Exception:
+        pass
     if path != "/" and path.endswith("/"):
         path = path.rstrip("/")
     return path

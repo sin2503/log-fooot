@@ -127,11 +127,15 @@ def main() -> None:
         if not args.log_path:
             print("--analyze-only の場合は --log-path が必須です。", file=sys.stderr)
             sys.exit(1)
-        sm_path = args.sitemap or str(sitemap_path)
-        if not Path(sm_path).exists():
-            print(f"sitemap が見つかりません: {sm_path}", file=sys.stderr)
-            sys.exit(1)
-        sitemap = load_sitemap_json(sm_path)
+        if args.sitemap and Path(args.sitemap).exists():
+            sitemap = load_sitemap_json(args.sitemap)
+            print(f"sitemap を読み込みました: {args.sitemap}")
+        else:
+            sitemap = {}
+            if args.sitemap:
+                print(f"警告: sitemap が見つからないため、ログのパスのみでレポートを生成します: {args.sitemap}", file=sys.stderr)
+            else:
+                print("クロールをスキップし、ログのパスのみでレポートを生成します。")
     else:
         if args.crawl_only:
             if not args.base_url:
