@@ -97,6 +97,7 @@ def _time_counts(sessions: list[Session]) -> list[dict]:
 LANG = {
     "en": {
         "title": "log-fooot Transition Report",
+        "title_repo_link": "Repository",
         "meta_pages": "Pages",
         "meta_sessions": "Sessions",
         "meta_edges": "Transition edges",
@@ -128,6 +129,7 @@ LANG = {
     },
     "ja": {
         "title": "log-fooot 遷移レポート",
+        "title_repo_link": "リポジトリ",
         "meta_pages": "ページ数",
         "meta_sessions": "セッション数",
         "meta_edges": "遷移エッジ数",
@@ -293,6 +295,7 @@ def render_html(
     ip_filter_placeholder = t["ip_filter_placeholder"]
     ip_flow_title = t["ip_flow_title"]
     ip_clear_btn = t["ip_clear_btn"]
+    title_repo_link = t["title_repo_link"]
     ip_panel_empty = t["ip_panel_empty"]
     ua_table_ua = t["ua_table_ua"]
     ua_table_count = t["ua_table_count"]
@@ -374,7 +377,9 @@ def render_html(
   .main-inner {{ flex: 1; display: flex; min-height: 0; overflow: hidden; }}
   .main-left {{ flex: 1; min-width: 0; overflow: auto; padding: 16px; }}
   .main-right {{ width: 320px; flex-shrink: 0; border-left: 1px solid #414868; background: #24283b; overflow: auto; padding: 12px; }}
-  .main-left h1 {{ font-size: 1.25rem; margin-bottom: 8px; }}
+  .main-left h1 {{ font-size: 1.25rem; margin-bottom: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }}
+  .title-repo-link {{ font-size: 0.75rem; font-weight: normal; color: #7aa2f7; }}
+  .title-repo-link:hover {{ text-decoration: underline; }}
   .meta {{ font-size: 0.875rem; color: #565f89; margin-bottom: 12px; }}
   .tabs {{ display: flex; gap: 4px; margin-bottom: 16px; }}
   .tab-btn {{ padding: 8px 16px; font-size: 0.875rem; background: #414868; color: #a9b1d6; border: none; border-radius: 6px; cursor: pointer; }}
@@ -499,7 +504,7 @@ def render_html(
 <div class="main">
 <div class="main-inner">
 <div class="main-left">
-<h1>{title}</h1>
+<h1>{title}<a href="https://github.com/sin2503/log-fooot" class="title-repo-link" target="_blank" rel="noopener noreferrer">{title_repo_link}</a></h1>
 <p class="meta">{meta_pages}: {len(all_paths)} / {meta_sessions}: {len(sessions)} / {meta_edges}: {len(edges_with_ips)}</p>
 <div class="tabs">
   <button type="button" class="tab-btn active" data-tab="transition">{tab_transition}</button>
