@@ -1,3 +1,5 @@
+# Copyright (c) 2026 sin2503. MIT License.
+# SPDX-License-Identifier: MIT
 """
 除外 IP リストの読み書き。サーバ側（レポート作成時）で保持し集計から除外する。
 """

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 sin2503. MIT License.
+# SPDX-License-Identifier: MIT
 """
 セッションと sitemap から、カード＋遷移の線で HTML レポートを生成するモジュール。
 """

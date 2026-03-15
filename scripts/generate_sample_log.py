@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 sin2503. MIT License.
+# SPDX-License-Identifier: MIT
 """
 20 画面・15000 行の nginx COMBINED 形式サンプルログを生成する。
 """

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 sin2503. MIT License.
+# SPDX-License-Identifier: MIT
 """
 指定した Web サイトをクロールし、URL 一覧と画面構成（パス・タイトル）を取得するモジュール。
 """
