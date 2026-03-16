@@ -13,7 +13,13 @@ nginx の COMBINED アクセスログを IP ごとに解析し、サイト内の
    nginx の COMBINED 形式のアクセスログをパースし、IP ごとにリクエスト時系列を構築します。
 
 3. **可視化**  
-   ページをカードとして表示し、ログから得られた「どの IP がどの順でページを見たか」を線で繋いだ HTML を出力します。
+   ページをカードとして表示し、ログから得られた「どの IP がどの順でページを見たか」を線で繋いだ HTML を出力します。  
+   さらに、次のようなビューを切り替えて分析できます。
+   - 遷移図: 画面カードと遷移線。カードやパスをクリックすると、右カラムに「そのページを閲覧した IP」と、その IP ごとの閲覧の流れを表示
+   - IN/OUT: ページごとの「流入が多いページ」「流出が多いページ」の Top10 を横棒グラフで表示（パスをクリックすると右カラムに IP 一覧）
+   - UA 一覧: User-Agent ごとのリクエスト件数ランキング
+   - 時刻グラフ: 1時間ごとのリクエスト数を棒グラフで表示
+   - エラー: HTTP 4xx/5xx をステータス別・IP 別に集計して表示（IP をクリックすると Google 検索を別タブで開く）
 
 ## 必要環境
 
@@ -126,6 +132,17 @@ python -m log_fooot --analyze-only --log-path ./sample_access.log --output-dir .
 ## ライセンス
 
 MIT License（[LICENSE](LICENSE)）
+
+## 開発メモ（コントリビュート）
+
+このリポジトリでは、コミットメッセージに **Conventional Commits** 形式を採用しています。詳しくはルートにある `.cursorrules` を参照してください。
+
+- **type の例**: `feat`, `fix`, `docs`, `refactor`, `test`, `chore` など  
+- **scope の例**: `cli`, `crawl`, `sessions`, `visualize`, `logparser`, `exclude`, `sample`, `docs`, `config`, `deps` など  
+- **形式**:  
+  - `feat(visualize): エラータブで IP ごとの 4xx/5xx を可視化する`
+
+PR を送る場合は、上記ルールに沿ったコミットメッセージを付けてもらえると助かります。
 
 ## 免責
 
