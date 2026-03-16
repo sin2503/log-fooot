@@ -47,6 +47,16 @@ def _collect_edges_with_ips(sessions: list[Session]) -> list[tuple[str, str, int
     return [(a, b, len(ips), ips) for (a, b), ips in edge_ips.items()]
 
 
+def _path_inout_counts(edges_with_ips: list[tuple[str, str, int, list[str]]]) -> tuple[dict[str, int], dict[str, int]]:
+    """パスごとの IN/OUT 回数（エッジ数ベース）を返す。"""
+    in_counts: dict[str, int] = defaultdict(int)
+    out_counts: dict[str, int] = defaultdict(int)
+    for a, b, count, _ips in edges_with_ips:
+        out_counts[a] += count
+        in_counts[b] += count
+    return in_counts, out_counts
+
+
 def _path_to_ips(sessions: list[Session]) -> dict[str, list[str]]:
     """path -> そのページを閲覧した IP のリスト（重複なし順序付き）。"""
     path_ips: dict[str, list[str]] = defaultdict(list)
@@ -126,6 +136,7 @@ LANG = {
         "meta_sessions": "Sessions",
         "meta_edges": "Transition edges",
         "tab_transition": "Transitions",
+        "tab_inout": "In/Out",
         "card_filter_placeholder": "Filter by path or title...",
         "tab_ua": "UA List",
         "tab_time": "Time chart",
@@ -160,6 +171,7 @@ LANG = {
         "meta_sessions": "セッション数",
         "meta_edges": "遷移エッジ数",
         "tab_transition": "遷移図",
+        "tab_inout": "IN/OUT",
         "card_filter_placeholder": "パスまたはタイトルでフィルタ...",
         "tab_ua": "UA一覧",
         "tab_time": "時刻グラフ",
@@ -237,6 +249,16 @@ def render_html(
 
     edges_with_ips = _collect_edges_with_ips(sessions)
     path_to_ips = _path_to_ips(sessions)
+    in_counts, out_counts = _path_inout_counts(edges_with_ips)
+    in_top = sorted(in_counts.items(), key=lambda x: -x[1])[:10]
+    out_top = sorted(out_counts.items(), key=lambda x: -x[1])[:10]
+    path_inout_json = json.dumps(
+        {
+            "in": [{"path": p, "count": c} for p, c in in_top],
+            "out": [{"path": p, "count": c} for p, c in out_top],
+        },
+        ensure_ascii=False,
+    )
     positions = _layout_cards(all_paths)
     card_width, card_height, gap = 200, 100, 24
 
@@ -310,6 +332,7 @@ def render_html(
     meta_sessions = t["meta_sessions"]
     meta_edges = t["meta_edges"]
     tab_transition = t["tab_transition"]
+    tab_inout = t["tab_inout"]
     card_filter_placeholder = t["card_filter_placeholder"]
     tab_ua = t["tab_ua"]
     tab_time = t["tab_time"]
@@ -436,6 +459,14 @@ def render_html(
   .time-chart-bar-wrap {{ flex: 1; height: 20px; background: #24283b; border-radius: 4px; overflow: hidden; }}
   .time-chart-bar {{ height: 100%; background: #7aa2f7; border-radius: 4px; min-width: 2px; }}
   .time-chart-count {{ width: 50px; font-size: 0.75rem; color: #a9b1d6; text-align: right; }}
+  .inout-layout {{ display: flex; flex-wrap: wrap; gap: 16px; max-width: 900px; }}
+  .inout-column {{ flex: 1; min-width: 260px; }}
+  .inout-title {{ font-size: 0.8rem; color: #7aa2f7; margin: 0 0 4px 0; }}
+  .inout-row {{ display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }}
+  .inout-label {{ width: 160px; font-size: 0.75rem; font-family: ui-monospace, monospace; color: #a9b1d6; flex-shrink: 0; }}
+  .inout-bar-wrap {{ flex: 1; height: 16px; background: #24283b; border-radius: 4px; overflow: hidden; }}
+  .inout-bar {{ height: 100%; background: #7dcfff; border-radius: 4px; min-width: 2px; }}
+  .inout-count {{ width: 40px; font-size: 0.75rem; color: #a9b1d6; text-align: right; }}
   .error-chart {{ display: flex; flex-direction: column; gap: 12px; max-width: 800px; }}
   .error-section-title {{ font-size: 0.8rem; color: #bb9af7; margin: 0 0 4px 0; }}
   .error-chart-row {{ display: flex; align-items: center; gap: 12px; }}
@@ -554,6 +585,7 @@ def render_html(
 <p class="meta">{meta_pages}: {len(all_paths)} / {meta_sessions}: {len(sessions)} / {meta_edges}: {len(edges_with_ips)}</p>
 <div class="tabs">
   <button type="button" class="tab-btn active" data-tab="transition">{tab_transition}</button>
+  <button type="button" class="tab-btn" data-tab="inout">{tab_inout}</button>
   <button type="button" class="tab-btn" data-tab="ua">{tab_ua}</button>
   <button type="button" class="tab-btn" data-tab="time">{tab_time}</button>
   <button type="button" class="tab-btn" data-tab="error">Errors</button>
@@ -579,6 +611,9 @@ def render_html(
 </div>
 <div id="tab-time" class="tab-pane">
   <div class="time-chart" id="time-chart"></div>
+</div>
+<div id="tab-inout" class="tab-pane">
+  <div class="inout-layout" id="inout-layout"></div>
 </div>
 <div id="tab-error" class="tab-pane">
   <div class="error-chart" id="error-chart"></div>
@@ -615,6 +650,7 @@ def render_html(
   var uaCounts = {ua_counts_json};
   var timeCounts = {time_counts_json};
   var timeMax = {time_max};
+  var pathInOut = {path_inout_json};
   var errorCounts = {error_counts_json};
   var langStrings = {lang_strings_json};
   var lines = document.querySelectorAll('.transition-line');
@@ -800,6 +836,54 @@ def render_html(
     }});
   }})();
 
+  (function initInOutChart() {{
+    var layout = document.getElementById('inout-layout');
+    if (!layout || !pathInOut || (!pathInOut.in && !pathInOut.out)) return;
+
+    function buildColumn(titleText, rows) {{
+      if (!rows || !rows.length) return null;
+      var col = document.createElement('div');
+      col.className = 'inout-column';
+      var title = document.createElement('p');
+      title.className = 'inout-title';
+      title.textContent = titleText;
+      col.appendChild(title);
+      var maxCount = 0;
+      rows.forEach(function(r) {{ if (r.count > maxCount) maxCount = r.count; }});
+      rows.forEach(function(r) {{
+        var wrap = document.createElement('div');
+        wrap.className = 'inout-row';
+        var label = document.createElement('span');
+        label.className = 'inout-label';
+        label.textContent = r.path;
+        label.style.cursor = 'pointer';
+        label.addEventListener('click', function(e) {{
+          e.stopPropagation();
+          showIpsForPath(r.path || '/');
+        }});
+        var barWrap = document.createElement('div');
+        barWrap.className = 'inout-bar-wrap';
+        var bar = document.createElement('div');
+        bar.className = 'inout-bar';
+        bar.style.width = (maxCount > 0 ? (r.count / maxCount * 100) : 0) + '%';
+        var count = document.createElement('span');
+        count.className = 'inout-count';
+        count.textContent = r.count.toLocaleString();
+        barWrap.appendChild(bar);
+        wrap.appendChild(label);
+        wrap.appendChild(barWrap);
+        wrap.appendChild(count);
+        col.appendChild(wrap);
+      }});
+      return col;
+    }}
+
+    var inCol = buildColumn('IN 多いページ Top10', pathInOut.in || []);
+    var outCol = buildColumn('OUT 多いページ Top10', pathInOut.out || []);
+    if (inCol) layout.appendChild(inCol);
+    if (outCol) layout.appendChild(outCol);
+  }})();
+
   var sidebarWidth = parseInt(localStorage.getItem(SIDEBAR_STORAGE_KEY), 10) || 260;
   var sidebarCollapsed = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
   if (sidebar && !isNaN(sidebarWidth) && !sidebarCollapsed) {{ sidebar.style.width = sidebarWidth + 'px'; }}
@@ -968,31 +1052,35 @@ def render_html(
     ipFilterEl.addEventListener('keydown', function(e) {{ e.stopPropagation(); }});
   }}
 
+  function showIpsForPath(path) {{
+    var ips = pathToIps[path] || [];
+    if (ips.length === 0) {{
+      showIpPanelEmpty();
+      clearIpSelection();
+      return;
+    }}
+    showIpPanelContent(path);
+    currentIps = ips;
+    if (ipFilterEl) ipFilterEl.value = '';
+    panelTitle.textContent = (langStrings.panelTitleWithCount || 'Visitor IPs for this page ({count})').replace('{{count}}', ips.length);
+    renderIpList(ips, '');
+    if (selectedIp && ips.indexOf(selectedIp) !== -1) {{
+      selectIp(selectedIp);
+    }} else if (selectedIp) {{
+      lines.forEach(function(line) {{
+        line.classList.remove('highlight');
+        line.classList.remove('dimmed');
+      }});
+    }}
+  }}
+
   cards.forEach(function(card) {{
     card.addEventListener('click', function(e) {{
       e.stopPropagation();
       var path = card.getAttribute('data-path') || '/';
-      var ips = pathToIps[path] || [];
       card.classList.add('card-selected');
       cards.forEach(function(c) {{ if (c !== card) c.classList.remove('card-selected'); }});
-      if (ips.length === 0) {{
-        showIpPanelEmpty();
-        clearIpSelection();
-        return;
-      }}
-      showIpPanelContent(path);
-      currentIps = ips;
-      if (ipFilterEl) ipFilterEl.value = '';
-      panelTitle.textContent = (langStrings.panelTitleWithCount || 'Visitor IPs for this page ({count})').replace('{{count}}', ips.length);
-      renderIpList(ips, '');
-      if (selectedIp && ips.indexOf(selectedIp) !== -1) {{
-        selectIp(selectedIp);
-      }} else if (selectedIp) {{
-        lines.forEach(function(line) {{
-          line.classList.remove('highlight');
-          line.classList.remove('dimmed');
-        }});
-      }}
+      showIpsForPath(path);
     }});
   }});
 
