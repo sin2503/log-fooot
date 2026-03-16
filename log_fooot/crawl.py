@@ -14,6 +14,8 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 
+from .exclude_paths import is_excluded_path
+
 
 @dataclass
 class PageInfo:
@@ -59,6 +61,7 @@ def crawl(
     delay_seconds: float = 0.5,
     timeout: int = 10,
     headers: dict | None = None,
+    exclude_paths: set[str] | None = None,
 ) -> dict[str, PageInfo]:
     """
     指定した base_url から同一オリジン内のリンクを辿り、ページ情報を収集する。
@@ -87,6 +90,8 @@ def crawl(
         seen.add(url)
 
         path = _path_from_url(url)
+        if exclude_paths and is_excluded_path(path, exclude_paths):
+            continue
         if path in by_path:
             continue
 
@@ -117,6 +122,8 @@ def crawl(
             if not _same_origin(base_netloc, absolute):
                 continue
             absolute_path = _path_from_url(absolute)
+            if exclude_paths and is_excluded_path(absolute_path, exclude_paths):
+                continue
             full_url = urljoin(base_url, absolute_path)
             links_out.append(absolute_path)
             if full_url not in seen and absolute_path not in by_path:

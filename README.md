@@ -129,6 +129,21 @@ python -m log_fooot --analyze-only --log-path ./sample_access.log --output-dir .
 - `result/sitemap.json` は 20 画面用にあらかじめ用意済みです。
 - `scripts/generate_sample_log.py` を実行すると `sample_access.log` が 15000 行で上書きされます。
 
+## テスト
+
+このリポジトリには、主に除外パス機能や可視化用ユーティリティを対象とした pytest ベースのテストが含まれています。
+
+- 実行手順:
+
+```bash
+pip install -r requirements.txt   # まだの場合
+pytest
+```
+
+- 主なテスト内容:
+  - `tests/test_exclude_paths.py`: 除外パス/ファイルの読み書き・判定ロジック
+  - `tests/test_visualize_utils.py`: IN/OUT 集計、エラー集計、`excluded_paths` による表示除外の確認
+
 ## ライセンス
 
 MIT License（[LICENSE](LICENSE)）

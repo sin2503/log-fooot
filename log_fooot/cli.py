@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from . import __version__
 from .crawl import crawl, PageInfo
 from .exclude_ips import load_exclude_ips
+from .exclude_paths import load_exclude_paths
 from .sessions import build_sessions
 from .visualize import (
     load_sitemap_json,
@@ -99,6 +100,12 @@ def main() -> None:
         help="除外する IP を列挙したファイル（.txt または .csv）。未指定で --output-dir に exclude_ips.csv があればそれを読む",
     )
     parser.add_argument(
+        "--exclude-paths",
+        type=str,
+        default="",
+        help="クロール・可視化から除外するパスやファイルを列挙したファイル（.txt または .csv）。未指定で --output-dir に exclude_paths.csv があればそれを読む",
+    )
+    parser.add_argument(
         "--lang",
         type=str,
         choices=["en", "ja"],
@@ -144,7 +151,7 @@ def main() -> None:
                 print("--crawl-only の場合は --base-url が必須です。", file=sys.stderr)
                 sys.exit(1)
             print(f"クロール中: {args.base_url} (最大 {args.max_pages} ページ)")
-            sitemap = crawl(args.base_url, max_pages=args.max_pages)
+            sitemap = crawl(args.base_url, max_pages=args.max_pages, exclude_paths=exclude_paths)
             save_sitemap_json(sitemap, sitemap_path)
             print(f"sitemap を保存しました: {sitemap_path}")
             return
@@ -154,7 +161,7 @@ def main() -> None:
             sys.exit(1)
 
         print(f"クロール中: {args.base_url} (最大 {args.max_pages} ページ)")
-        sitemap = crawl(args.base_url, max_pages=args.max_pages)
+        sitemap = crawl(args.base_url, max_pages=args.max_pages, exclude_paths=exclude_paths)
         save_sitemap_json(sitemap, sitemap_path)
         print(f"sitemap を保存しました: {sitemap_path}")
 
@@ -170,6 +177,24 @@ def main() -> None:
         exclude_ips = load_exclude_ips(exclude_ips_path)
         if exclude_ips:
             print(f"除外 IP を読み込みました: {exclude_ips_path} ({len(exclude_ips)} 件)")
+
+    exclude_paths_path = args.exclude_paths.strip()
+    exclude_paths: set[str] = set()
+    if not exclude_paths_path and (out_dir / "exclude_paths.csv").exists():
+        exclude_paths_path = str(out_dir / "exclude_paths.csv")
+    if exclude_paths_path:
+        exclude_paths = load_exclude_paths(exclude_paths_path)
+        if exclude_paths:
+            print(f"除外パス/ファイルを読み込みました: {exclude_paths_path} ({len(exclude_paths)} 件)")
+
+    exclude_paths_path = args.exclude_paths.strip()
+    if not exclude_paths_path and (out_dir / "exclude_paths.csv").exists():
+        exclude_paths_path = str(out_dir / "exclude_paths.csv")
+    exclude_paths: set[str] = set()
+    if exclude_paths_path:
+        exclude_paths = load_exclude_paths(exclude_paths_path)
+        if exclude_paths:
+            print(f"除外パス/ファイルを読み込みました: {exclude_paths_path} ({len(exclude_paths)} 件)")
 
     base_netloc = urlparse(args.base_url or "https://example.com").netloc
     print(f"ログ解析中: {args.log_path}")
@@ -197,6 +222,7 @@ def main() -> None:
             report_path,
             base_url=args.base_url,
             excluded_ips=list(exclude_ips),
+            excluded_paths=list(exclude_paths),
             lang=args.lang,
         )
         print(f"レポートを保存しました: {report_path}")
