@@ -14,6 +14,7 @@ from pathlib import Path
 
 from .crawl import PageInfo
 from .sessions import Session
+from .exclude_paths import is_excluded_path
 
 
 def _path_to_id(path: str) -> str:
@@ -147,6 +148,10 @@ LANG = {
         "sidebar_add_btn": "Add",
         "sidebar_import_btn": "Import CSV",
         "sidebar_export_btn": "Export CSV",
+        "sidebar_exclude_paths_title": "Exclude paths/files",
+        "sidebar_exclude_paths_hint": "Paths and files to exclude from crawling and visualization. Export as CSV and use --exclude-paths or save as exclude_paths.csv in the output dir.",
+        "sidebar_exclude_paths_placeholder": "Enter path (e.g. /admin, /static/logo.png)",
+        "sidebar_exclude_paths_export_btn": "Export paths CSV",
         "toggle_close": "Close",
         "toggle_collapse_title": "Collapse menu",
         "toggle_expand_title": "Expand menu",
@@ -182,6 +187,10 @@ LANG = {
         "sidebar_add_btn": "追加",
         "sidebar_import_btn": "CSV 取り込み",
         "sidebar_export_btn": "CSV ダウンロード",
+        "sidebar_exclude_paths_title": "除外パス / ファイル",
+        "sidebar_exclude_paths_hint": "クロール・可視化から除外するパスやファイルです。リストを編集して CSV をダウンロードし、次回は --exclude-paths で指定するか、出力先の exclude_paths.csv に保存して再生成してください。",
+        "sidebar_exclude_paths_placeholder": "パスを入力（例: /admin, /static/logo.png）",
+        "sidebar_exclude_paths_export_btn": "パス CSV ダウンロード",
         "toggle_close": "閉じる",
         "toggle_collapse_title": "メニューを折りたたむ",
         "toggle_expand_title": "メニューを開く",
@@ -224,6 +233,7 @@ def render_html(
     base_url: str = "",
     title: str = "",
     excluded_ips: list[str] | None = None,
+    excluded_paths: list[str] | None = None,
     lang: str = "en",
 ) -> None:
     """
@@ -236,6 +246,8 @@ def render_html(
     if not title:
         title = t["title"]
 
+    excluded_path_set = set(excluded_paths or [])
+
     all_paths = list(sitemap.keys())
     seen_paths = set(all_paths)
     for s in sessions:
@@ -244,11 +256,22 @@ def render_html(
                 all_paths.append(step.path)
                 seen_paths.add(step.path)
 
+    if excluded_path_set:
+        all_paths = [p for p in all_paths if not is_excluded_path(p, excluded_path_set)]
+
     if not all_paths:
         all_paths = ["/"]
 
     edges_with_ips = _collect_edges_with_ips(sessions)
+    if excluded_path_set:
+        edges_with_ips = [
+            (a, b, c, ips)
+            for (a, b, c, ips) in edges_with_ips
+            if not is_excluded_path(a, excluded_path_set) and not is_excluded_path(b, excluded_path_set)
+        ]
     path_to_ips = _path_to_ips(sessions)
+    if excluded_path_set:
+        path_to_ips = {p: ips for p, ips in path_to_ips.items() if not is_excluded_path(p, excluded_path_set)}
     in_counts, out_counts = _path_inout_counts(edges_with_ips)
     in_top = sorted(in_counts.items(), key=lambda x: -x[1])[:10]
     out_top = sorted(out_counts.items(), key=lambda x: -x[1])[:10]
@@ -307,6 +330,8 @@ def render_html(
     ip_to_sessions_json = json.dumps(ip_to_sessions, ensure_ascii=False)
     excluded_ips = excluded_ips or []
     excluded_ips_json = json.dumps(excluded_ips, ensure_ascii=False)
+    excluded_paths_list = sorted(excluded_path_set) if excluded_path_set else []
+    excluded_paths_json = json.dumps(excluded_paths_list, ensure_ascii=False)
     ua_counts = _ua_counts(sessions)
     ua_counts_json = json.dumps(ua_counts, ensure_ascii=False)
     time_counts = _time_counts(sessions)
@@ -342,6 +367,10 @@ def render_html(
     sidebar_add_btn = t["sidebar_add_btn"]
     sidebar_import_btn = t["sidebar_import_btn"]
     sidebar_export_btn = t["sidebar_export_btn"]
+    sidebar_exclude_paths_title = t["sidebar_exclude_paths_title"]
+    sidebar_exclude_paths_hint = t["sidebar_exclude_paths_hint"]
+    sidebar_exclude_paths_placeholder = t["sidebar_exclude_paths_placeholder"]
+    sidebar_exclude_paths_export_btn = t["sidebar_exclude_paths_export_btn"]
     toggle_close = t["toggle_close"]
     toggle_collapse_title = t["toggle_collapse_title"]
     ip_panel_title = t["ip_panel_title"]
@@ -417,6 +446,7 @@ def render_html(
   .exclude-hint {{ font-size: 0.7rem; color: #565f89; margin-bottom: 8px; line-height: 1.4; }}
   .exclude-list {{ max-height: 120px; overflow-y: auto; margin-bottom: 8px; font-size: 0.75rem; font-family: ui-monospace, monospace; }}
   .exclude-list li {{ padding: 2px 0; color: #a9b1d6; display: flex; align-items: center; justify-content: space-between; gap: 6px; }}
+  .exclude-fixed-icon {{ font-size: 0.7rem; color: #565f89; margin-left: 6px; }}
   .exclude-list li .exclude-rm {{ padding: 0 4px; cursor: pointer; color: #565f89; }}
   .exclude-list li .exclude-rm:hover {{ color: #f7768e; }}
   .exclude-add {{ display: flex; gap: 6px; margin-bottom: 8px; }}
@@ -427,6 +457,14 @@ def render_html(
   .exclude-btns button {{ padding: 4px 10px; font-size: 0.75rem; background: #414868; color: #a9b1d6; border: none; border-radius: 4px; cursor: pointer; }}
   .exclude-btns button:hover {{ background: #565f89; color: #c0caf5; }}
   .exclude-btns input[type=file] {{ display: none; }}
+  .exclude-path-list {{ max-height: 120px; overflow-y: auto; margin: 8px 0; font-size: 0.75rem; font-family: ui-monospace, monospace; }}
+  .exclude-path-list li {{ padding: 2px 0; color: #a9b1d6; display: flex; align-items: center; justify-content: space-between; gap: 6px; }}
+  .exclude-path-list li .exclude-rm {{ padding: 0 4px; cursor: pointer; color: #565f89; }}
+  .exclude-path-list li .exclude-rm:hover {{ color: #f7768e; }}
+  .exclude-path-add {{ display: flex; gap: 6px; margin-bottom: 8px; }}
+  .exclude-path-add input {{ flex: 1; padding: 4px 8px; font-size: 0.8rem; background: #1a1b26; border: 1px solid #414868; border-radius: 4px; color: #c0caf5; }}
+  .exclude-path-add button {{ padding: 4px 10px; font-size: 0.75rem; background: #414868; color: #a9b1d6; border: none; border-radius: 4px; cursor: pointer; }}
+  .exclude-path-add button:hover {{ background: #565f89; color: #c0caf5; }}
   .main {{ flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }}
   .main-inner {{ flex: 1; display: flex; min-height: 0; overflow: hidden; }}
   .main-left {{ flex: 1; min-width: 0; overflow: auto; padding: 16px; }}
@@ -575,6 +613,16 @@ def render_html(
       <input type="file" id="exclude-file-input" accept=".csv,.txt" />
       <button type="button" id="exclude-export-btn">{sidebar_export_btn}</button>
     </div>
+    <h4 style="margin-top:16px;font-size:0.85rem;color:#7aa2f7;">{sidebar_exclude_paths_title}</h4>
+    <p class="exclude-hint">{sidebar_exclude_paths_hint}</p>
+    <ul class="exclude-path-list" id="exclude-path-list"></ul>
+    <div class="exclude-path-add">
+      <input type="text" id="exclude-path-input" placeholder="{sidebar_exclude_paths_placeholder}" />
+      <button type="button" id="exclude-path-add-btn">追加</button>
+    </div>
+    <div class="exclude-btns">
+      <button type="button" id="exclude-path-export-btn">{sidebar_exclude_paths_export_btn}</button>
+    </div>
   </div>
 </div>
 <div class="sidebar-resizer" id="sidebar-resizer"></div>
@@ -647,6 +695,7 @@ def render_html(
   var pathToIps = {path_to_ips_json};
   var ipToSessions = {ip_to_sessions_json};
   var excludedIps = {excluded_ips_json};
+  var excludedPaths = {excluded_paths_json};
   var uaCounts = {ua_counts_json};
   var timeCounts = {time_counts_json};
   var timeMax = {time_max};
@@ -683,19 +732,38 @@ def render_html(
   var excludeFileInput = document.getElementById('exclude-file-input');
   var excludeExportBtn = document.getElementById('exclude-export-btn');
 
+  var initialExcludeIps = new Set(excludedIps);
   var excludeSet = new Set(excludedIps);
+
+  var excludePathListEl = document.getElementById('exclude-path-list');
+  var excludePathInput = document.getElementById('exclude-path-input');
+  var excludePathAddBtn = document.getElementById('exclude-path-add-btn');
+  var excludePathExportBtn = document.getElementById('exclude-path-export-btn');
+  var initialExcludePaths = new Set(excludedPaths || []);
+  var excludePathSet = new Set(excludedPaths || []);
 
   function renderExcludeList() {{
     if (!excludeListEl) return;
     excludeListEl.innerHTML = '';
     Array.from(excludeSet).sort().forEach(function(ip) {{
       var li = document.createElement('li');
-      li.textContent = ip;
-      var rm = document.createElement('span');
-      rm.className = 'exclude-rm';
-      rm.textContent = '×';
-      rm.addEventListener('click', function() {{ excludeSet.delete(ip); renderExcludeList(); }});
-      li.appendChild(rm);
+      var label = document.createElement('span');
+      label.textContent = ip;
+      li.appendChild(label);
+      if (initialExcludeIps.has(ip)) {{
+        var fixed = document.createElement('span');
+        fixed.className = 'exclude-fixed-icon';
+        fixed.textContent = 'CSV';
+        li.appendChild(fixed);
+      }}
+      // 最初にファイルから読み込まれた IP は削除不可（× を出さない）
+      if (!initialExcludeIps.has(ip)) {{
+        var rm = document.createElement('span');
+        rm.className = 'exclude-rm';
+        rm.textContent = '×';
+        rm.addEventListener('click', function() {{ excludeSet.delete(ip); renderExcludeList(); }});
+        li.appendChild(rm);
+      }}
       excludeListEl.appendChild(li);
     }});
   }}
@@ -739,6 +807,89 @@ def render_html(
     }});
   }}
   renderExcludeList();
+
+  function pathMatchesExcluded(path) {{
+    if (!excludePathSet || !excludePathSet.size) return false;
+    var p = path || '/';
+    var matched = false;
+    excludePathSet.forEach(function(raw) {{
+      if (matched) return;
+      var pat = (raw || '').trim();
+      if (!pat) return;
+      if (pat !== '/' && pat.endsWith('/')) pat = pat.replace(/\\/+$/, '');
+      if (p === pat) {{
+        matched = true;
+        return;
+      }}
+      if (pat !== '/' && p.indexOf(pat + '/') === 0) {{
+        matched = true;
+      }}
+    }});
+    return matched;
+  }}
+
+  function applyPathExclusions() {{
+    // カードを非表示
+    cards.forEach(function(card) {{
+      var path = card.getAttribute('data-path') || '/';
+      var hide = pathMatchesExcluded(path);
+      card.classList.toggle('card-hidden', hide);
+    }});
+    // 線を非表示
+    lines.forEach(function(line) {{
+      var from = line.getAttribute('data-from') || '';
+      var to = line.getAttribute('data-to') || '';
+      var hide = pathMatchesExcluded(from) || pathMatchesExcluded(to);
+      line.classList.toggle('line-hidden', hide);
+    }});
+  }}
+
+  function renderExcludePathList() {{
+    if (!excludePathListEl) return;
+    excludePathListEl.innerHTML = '';
+    Array.from(excludePathSet).sort().forEach(function(p) {{
+      var li = document.createElement('li');
+      var label = document.createElement('span');
+      label.textContent = p;
+      li.appendChild(label);
+      if (initialExcludePaths.has(p)) {{
+        var fixed = document.createElement('span');
+        fixed.className = 'exclude-fixed-icon';
+        fixed.textContent = 'CSV';
+        li.appendChild(fixed);
+      }}
+      // 最初にファイルから読み込まれたパスは削除不可（× を出さない）
+      if (!initialExcludePaths.has(p)) {{
+        var rm = document.createElement('span');
+        rm.className = 'exclude-rm';
+        rm.textContent = '×';
+        rm.addEventListener('click', function() {{ excludePathSet.delete(p); renderExcludePathList(); applyPathExclusions(); }});
+        li.appendChild(rm);
+      }}
+      excludePathListEl.appendChild(li);
+    }});
+  }}
+
+  function addExcludePath(p) {{
+    p = (p || '').trim();
+    if (p) {{ excludePathSet.add(p); renderExcludePathList(); applyPathExclusions(); }}
+  }}
+
+  if (excludePathAddBtn && excludePathInput) {{
+    excludePathAddBtn.addEventListener('click', function() {{ addExcludePath(excludePathInput.value); excludePathInput.value = ''; }});
+    excludePathInput.addEventListener('keydown', function(e) {{ if (e.key === 'Enter') {{ addExcludePath(excludePathInput.value); excludePathInput.value = ''; }} }});
+  }}
+  if (excludePathExportBtn) {{
+    excludePathExportBtn.addEventListener('click', function() {{
+      var csv = 'path\\n' + Array.from(excludePathSet).sort().map(function(p) {{ return p; }}).join('\\n');
+      var a = document.createElement('a');
+      a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+      a.download = 'exclude_paths.csv';
+      a.click();
+    }});
+  }}
+  renderExcludePathList();
+  applyPathExclusions();
 
   (function initTabs() {{
     var tabBtns = document.querySelectorAll('.tab-btn');
@@ -1053,7 +1204,7 @@ def render_html(
   }}
 
   function showIpsForPath(path) {{
-    var ips = pathToIps[path] || [];
+    var ips = (pathToIps[path] || []).filter(function(ip) {{ return !excludeSet.has(ip); }});
     if (ips.length === 0) {{
       showIpPanelEmpty();
       clearIpSelection();
