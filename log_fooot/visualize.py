@@ -74,6 +74,28 @@ def _ip_to_sessions(sessions: list[Session]) -> dict[str, list[list[dict]]]:
     return dict(ip_sessions)
 
 
+def _error_counts(sessions: list[Session]) -> list[dict]:
+    """4xx/5xx ごとの IP 別エラー回数。[{status, ips: [{ip, count}, ...]}, ...] を返す。"""
+    status_ip_counts: dict[int, dict[str, int]] = defaultdict(dict)
+    for s in sessions:
+        for st in s.steps:
+            if 400 <= st.status < 600:
+                by_ip = status_ip_counts.setdefault(st.status, {})
+                by_ip[s.ip] = by_ip.get(s.ip, 0) + 1
+
+    result: list[dict] = []
+    for status in sorted(status_ip_counts.keys()):
+        ip_counts = status_ip_counts[status]
+        ips_sorted = sorted(ip_counts.items(), key=lambda x: -x[1])
+        result.append(
+            {
+                "status": status,
+                "ips": [{"ip": ip, "count": c} for ip, c in ips_sorted],
+            }
+        )
+    return result
+
+
 def _ua_counts(sessions: list[Session]) -> list[dict]:
     """User-Agent ごとのリクエスト数。 [{"ua": "...", "count": N}, ...] を件数降順で。"""
     counts: dict[str, int] = defaultdict(int)
@@ -106,6 +128,7 @@ LANG = {
         "tab_transition": "Transitions",
         "tab_ua": "UA List",
         "tab_time": "Time chart",
+        "tab_error": "Errors",
         "sidebar_exclude_title": "Exclude IPs",
         "sidebar_exclude_hint": "IPs excluded from this report. Edit the list, export as CSV, and use --exclude-ips on the next run or save as exclude_ips.csv in the output dir.",
         "sidebar_add_placeholder": "Enter IP",
@@ -138,6 +161,7 @@ LANG = {
         "tab_transition": "遷移図",
         "tab_ua": "UA一覧",
         "tab_time": "時刻グラフ",
+        "tab_error": "エラー",
         "sidebar_exclude_title": "除外 IP",
         "sidebar_exclude_hint": "レポート作成時に集計から除外した IP です。リストを編集して CSV をエクスポートし、次回は --exclude-ips で指定するか、出力先の exclude_ips.csv に保存して再生成してください。",
         "sidebar_add_placeholder": "IP を入力",
@@ -264,6 +288,8 @@ def render_html(
     time_counts = _time_counts(sessions)
     time_counts_json = json.dumps(time_counts, ensure_ascii=False)
     time_max = max((x["count"] for x in time_counts), default=1)
+    error_counts = _error_counts(sessions)
+    error_counts_json = json.dumps(error_counts, ensure_ascii=False)
     lang_strings_json = json.dumps(
         {
             "panelTitleWithCount": t["panel_title_with_count"],
@@ -401,6 +427,15 @@ def render_html(
   .time-chart-bar-wrap {{ flex: 1; height: 20px; background: #24283b; border-radius: 4px; overflow: hidden; }}
   .time-chart-bar {{ height: 100%; background: #7aa2f7; border-radius: 4px; min-width: 2px; }}
   .time-chart-count {{ width: 50px; font-size: 0.75rem; color: #a9b1d6; text-align: right; }}
+  .error-chart {{ display: flex; flex-direction: column; gap: 12px; max-width: 800px; }}
+  .error-section-title {{ font-size: 0.8rem; color: #bb9af7; margin: 0 0 4px 0; }}
+  .error-chart-row {{ display: flex; align-items: center; gap: 12px; }}
+  .error-chart-label {{ display: flex; align-items: center; gap: 6px; width: 140px; font-size: 0.75rem; font-family: ui-monospace, monospace; color: #565f89; flex-shrink: 0; }}
+  .error-chart-google-link {{ font-size: 0.7rem; color: #7aa2f7; }}
+  .error-chart-google-link:hover {{ text-decoration: underline; }}
+  .error-chart-bar-wrap {{ flex: 1; height: 16px; background: #24283b; border-radius: 4px; overflow: hidden; }}
+  .error-chart-bar {{ height: 100%; background: #f7768e; border-radius: 4px; min-width: 2px; }}
+  .error-chart-count {{ width: 50px; font-size: 0.75rem; color: #a9b1d6; text-align: right; }}
   .canvas {{ position: relative; width: {svg_width:.0f}px; height: {svg_height:.0f}px; flex-shrink: 0; }}
   .transition-line {{ stroke-linecap: round; transition: stroke 0.2s, stroke-width 0.2s, opacity 0.2s; }}
   .transition-line:hover {{ stroke: #7aa2f7; stroke-width: 5; }}
@@ -512,6 +547,7 @@ def render_html(
   <button type="button" class="tab-btn active" data-tab="transition">{tab_transition}</button>
   <button type="button" class="tab-btn" data-tab="ua">{tab_ua}</button>
   <button type="button" class="tab-btn" data-tab="time">{tab_time}</button>
+  <button type="button" class="tab-btn" data-tab="error">Errors</button>
 </div>
 <div id="tab-transition" class="tab-pane active">
 <div class="layout">
@@ -531,6 +567,9 @@ def render_html(
 </div>
 <div id="tab-time" class="tab-pane">
   <div class="time-chart" id="time-chart"></div>
+</div>
+<div id="tab-error" class="tab-pane">
+  <div class="error-chart" id="error-chart"></div>
 </div>
 </div>
 <div class="main-right">
@@ -564,6 +603,7 @@ def render_html(
   var uaCounts = {ua_counts_json};
   var timeCounts = {time_counts_json};
   var timeMax = {time_max};
+  var errorCounts = {error_counts_json};
   var langStrings = {lang_strings_json};
   var lines = document.querySelectorAll('.transition-line');
   var cards = document.querySelectorAll('.card');
@@ -704,6 +744,46 @@ def render_html(
       wrap.appendChild(barWrap);
       wrap.appendChild(count);
       chart.appendChild(wrap);
+    }});
+  }})();
+
+  (function initErrorChart() {{
+    var chart = document.getElementById('error-chart');
+    if (!chart || !errorCounts.length || !chart) return;
+    errorCounts.forEach(function(section) {{
+      if (!section.ips || !section.ips.length) return;
+      var title = document.createElement('p');
+      title.className = 'error-section-title';
+      title.textContent = 'HTTP ' + section.status;
+      chart.appendChild(title);
+      var maxCount = 0;
+      section.ips.forEach(function(row) {{ if (row.count > maxCount) maxCount = row.count; }});
+      section.ips.forEach(function(row) {{
+        var wrap = document.createElement('div');
+        wrap.className = 'error-chart-row';
+        var label = document.createElement('span');
+        label.className = 'error-chart-label';
+        var glink = document.createElement('a');
+        glink.className = 'error-chart-google-link';
+        glink.href = 'https://www.google.com/search?q=' + encodeURIComponent(row.ip);
+        glink.target = '_blank';
+        glink.rel = 'noopener noreferrer';
+        glink.textContent = row.ip;
+        label.appendChild(glink);
+        var barWrap = document.createElement('div');
+        barWrap.className = 'error-chart-bar-wrap';
+        var bar = document.createElement('div');
+        bar.className = 'error-chart-bar';
+        bar.style.width = (maxCount > 0 ? (row.count / maxCount * 100) : 0) + '%';
+        var count = document.createElement('span');
+        count.className = 'error-chart-count';
+        count.textContent = row.count.toLocaleString();
+        barWrap.appendChild(bar);
+        wrap.appendChild(label);
+        wrap.appendChild(barWrap);
+        wrap.appendChild(count);
+        chart.appendChild(wrap);
+      }});
     }});
   }})();
 
