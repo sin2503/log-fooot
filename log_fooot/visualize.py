@@ -104,6 +104,7 @@ LANG = {
         "meta_sessions": "Sessions",
         "meta_edges": "Transition edges",
         "tab_transition": "Transitions",
+        "card_filter_placeholder": "Filter by path or title...",
         "tab_ua": "UA List",
         "tab_time": "Time chart",
         "sidebar_exclude_title": "Exclude IPs",
@@ -136,6 +137,7 @@ LANG = {
         "meta_sessions": "セッション数",
         "meta_edges": "遷移エッジ数",
         "tab_transition": "遷移図",
+        "card_filter_placeholder": "パスまたはタイトルでフィルタ...",
         "tab_ua": "UA一覧",
         "tab_time": "時刻グラフ",
         "sidebar_exclude_title": "除外 IP",
@@ -282,6 +284,7 @@ def render_html(
     meta_sessions = t["meta_sessions"]
     meta_edges = t["meta_edges"]
     tab_transition = t["tab_transition"]
+    card_filter_placeholder = t["card_filter_placeholder"]
     tab_ua = t["tab_ua"]
     tab_time = t["tab_time"]
     sidebar_exclude_title = t["sidebar_exclude_title"]
@@ -389,6 +392,12 @@ def render_html(
   .tab-btn.active {{ background: #7aa2f7; color: #1a1b26; }}
   .tab-pane {{ display: none; min-height: 0; }}
   .tab-pane.active {{ display: block; }}
+  .card-filter-wrap {{ margin-bottom: 12px; }}
+  .card-filter {{ width: 100%; max-width: 320px; padding: 8px 12px; font-size: 0.875rem; background: #1a1b26; border: 1px solid #414868; border-radius: 6px; color: #c0caf5; }}
+  .card-filter::placeholder {{ color: #565f89; }}
+  .card-filter:focus {{ outline: none; border-color: #7aa2f7; }}
+  .card.card-hidden {{ display: none !important; }}
+  .transition-line.line-hidden {{ visibility: hidden; }}
   .layout {{ display: flex; justify-content: flex-start; align-items: flex-start; }}
   .ua-table {{ width: 100%; border-collapse: collapse; font-size: 0.8rem; }}
   .ua-table th, .ua-table td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #414868; }}
@@ -514,6 +523,9 @@ def render_html(
   <button type="button" class="tab-btn" data-tab="time">{tab_time}</button>
 </div>
 <div id="tab-transition" class="tab-pane active">
+<div class="card-filter-wrap">
+  <input type="text" class="card-filter" id="card-filter" placeholder="{card_filter_placeholder}" autocomplete="off"/>
+</div>
 <div class="layout">
 <div class="canvas">
 <svg width="{svg_width:.0f}" height="{svg_height:.0f}" xmlns="http://www.w3.org/2000/svg">
@@ -567,6 +579,7 @@ def render_html(
   var langStrings = {lang_strings_json};
   var lines = document.querySelectorAll('.transition-line');
   var cards = document.querySelectorAll('.card');
+  var cardFilterEl = document.getElementById('card-filter');
   var panel = document.getElementById('ip-panel');
   var ipPanelEmpty = document.getElementById('ip-panel-empty');
   var ipPanelContent = document.getElementById('ip-panel-content');
@@ -902,6 +915,28 @@ def render_html(
       }}
     }});
   }});
+
+  function applyCardFilter() {{
+    var q = (cardFilterEl && cardFilterEl.value || '').trim().toLowerCase();
+    var visiblePaths = new Set();
+    cards.forEach(function(card) {{
+      var path = card.getAttribute('data-path') || '';
+      var titleEl = card.querySelector('.card-title');
+      var title = (titleEl && titleEl.textContent) ? titleEl.textContent.trim() : '';
+      var match = !q || (path.toLowerCase().indexOf(q) !== -1 || title.toLowerCase().indexOf(q) !== -1);
+      card.classList.toggle('card-hidden', !match);
+      if (match) visiblePaths.add(path);
+    }});
+    lines.forEach(function(line) {{
+      var from = line.getAttribute('data-from') || '';
+      var to = line.getAttribute('data-to') || '';
+      line.classList.toggle('line-hidden', !visiblePaths.has(from) || !visiblePaths.has(to));
+    }});
+  }}
+  if (cardFilterEl) {{
+    cardFilterEl.addEventListener('input', applyCardFilter);
+    cardFilterEl.addEventListener('keydown', function(e) {{ e.stopPropagation(); }});
+  }}
 
   document.addEventListener('click', function(e) {{
     if (panel.contains(e.target) || e.target.closest('.card')) return;
