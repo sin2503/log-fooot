@@ -89,8 +89,6 @@ def build_sessions(
             path_lower = path.lower()
             if any(path_lower.endswith(ext) for ext in SKIP_EXT):
                 continue
-        if entry.status >= 400 and only_html:
-            continue
         if entry.time_local is None:
             continue
         by_ip.setdefault(entry.ip, []).append(entry)
