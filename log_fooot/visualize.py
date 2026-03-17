@@ -161,6 +161,9 @@ LANG = {
         "ip_panel_empty": "Click a card to show visitor IPs for that page.",
         "ip_panel_hint": "Click an IP to highlight that visitor's path.",
         "ip_filter_placeholder": "Filter by IP...",
+        "ip_sort_default": "Visit order",
+        "ip_sort_sessions_desc": "Sessions (many→few)",
+        "ip_sort_sessions_asc": "Sessions (few→many)",
         "ip_flow_title": "This IP's path",
         "ip_flow_google_link": "Search on Google",
         "ip_clear_btn": "Clear selection",
@@ -202,6 +205,9 @@ LANG = {
         "ip_panel_empty": "カードをクリックすると、このページを訪問した IP が表示されます。",
         "ip_panel_hint": "IP をクリックするとその閲覧者の辿った線を強調表示します。",
         "ip_filter_placeholder": "IP でフィルタ...",
+        "ip_sort_default": "訪問順",
+        "ip_sort_sessions_desc": "セッション数 多い順",
+        "ip_sort_sessions_asc": "セッション数 少ない順",
         "ip_flow_title": "この IP の閲覧の流れ",
         "ip_flow_google_link": "Googleで検索",
         "ip_clear_btn": "選択を解除",
@@ -386,6 +392,9 @@ def render_html(
     ip_panel_empty = t["ip_panel_empty"]
     ua_table_ua = t["ua_table_ua"]
     ua_table_count = t["ua_table_count"]
+    ip_sort_default = t["ip_sort_default"]
+    ip_sort_sessions_desc = t["ip_sort_sessions_desc"]
+    ip_sort_sessions_asc = t["ip_sort_sessions_asc"]
 
     # レポート生成日時（ローカルタイムゾーン）
     generated_at = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
@@ -473,14 +482,37 @@ def render_html(
   .exclude-path-add button {{ padding: 4px 10px; font-size: 0.75rem; background: #414868; color: #a9b1d6; border: none; border-radius: 4px; cursor: pointer; }}
   .exclude-path-add button:hover {{ background: #565f89; color: #c0caf5; }}
   .main {{ flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }}
-  .main-inner {{ flex: 1; display: flex; min-height: 0; overflow: hidden; }}
+  .main-inner {{ flex: 1; display: flex; min-height: 0; overflow: hidden; position: relative; }}
   .main-left {{ flex: 1; min-width: 0; overflow: auto; padding: 16px; }}
-  .main-right {{ width: 320px; flex-shrink: 0; border-left: 1px solid #414868; background: #24283b; overflow: auto; padding: 12px; }}
+  .main-right {{
+    width: 320px;
+    flex-shrink: 0;
+    border-left: 1px solid #414868;
+    background: #24283b;
+    overflow: auto;
+    padding: 12px;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    transform: translateX(100%);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.25s ease-out, opacity 0.25s ease-out;
+  }}
+  .main-right.open {{
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }}
   .main-left h1 {{ font-size: 1.25rem; margin-bottom: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }}
   .title-repo-link {{ font-size: 0.75rem; font-weight: normal; color: #7aa2f7; }}
   .title-repo-link:hover {{ text-decoration: underline; }}
   .meta {{ font-size: 0.875rem; color: #565f89; margin-bottom: 12px; }}
-  .tabs {{ display: flex; gap: 4px; margin-bottom: 16px; }}
+  .meta-inline {{ display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }}
+  .meta-inline span {{ white-space: nowrap; }}
+  .tabs {{ display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }}
   .tab-btn {{ padding: 8px 16px; font-size: 0.875rem; background: #414868; color: #a9b1d6; border: none; border-radius: 6px; cursor: pointer; }}
   .tab-btn:hover {{ background: #565f89; color: #c0caf5; }}
   .tab-btn.active {{ background: #7aa2f7; color: #1a1b26; }}
@@ -492,7 +524,7 @@ def render_html(
   .card-filter:focus {{ outline: none; border-color: #7aa2f7; }}
   .card.card-hidden {{ display: none !important; }}
   .transition-line.line-hidden {{ visibility: hidden; }}
-  .layout {{ display: flex; justify-content: flex-start; align-items: flex-start; }}
+  .layout {{ display: flex; justify-content: flex-start; align-items: flex-start; overflow-x: auto; }}
   .ua-table {{ width: 100%; border-collapse: collapse; font-size: 0.8rem; }}
   .ua-table th, .ua-table td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #414868; }}
   .ua-table th {{ color: #7aa2f7; }}
@@ -512,6 +544,17 @@ def render_html(
   .inout-bar-wrap {{ flex: 1; height: 16px; background: #24283b; border-radius: 4px; overflow: hidden; }}
   .inout-bar {{ height: 100%; background: #7dcfff; border-radius: 4px; min-width: 2px; }}
   .inout-count {{ width: 40px; font-size: 0.75rem; color: #a9b1d6; text-align: right; }}
+
+  @media (max-width: 768px) {{
+    .meta {{ font-size: 0.8rem; }}
+    .tabs {{ gap: 6px; }}
+    .tab-btn {{
+      flex: 1 1 calc(50% - 6px);
+      text-align: center;
+    }}
+    .layout {{ justify-content: flex-start; padding-left: 8px; padding-right: 8px; }}
+    .canvas {{ margin-left: 0; }}
+  }}
   .error-chart {{ display: flex; flex-direction: column; gap: 12px; max-width: 800px; }}
   .error-section-title {{ font-size: 0.8rem; color: #bb9af7; margin: 0 0 4px 0; }}
   .error-chart-row {{ display: flex; align-items: center; gap: 12px; }}
@@ -548,9 +591,24 @@ def render_html(
   .ip-panel-empty {{ font-size: 0.8rem; color: #565f89; line-height: 1.5; padding: 8px 0; }}
   .ip-panel-content {{ display: none; flex: 1; min-height: 0; flex-direction: column; }}
   .ip-panel-content.visible {{ display: flex; }}
+  .ip-panel-header {{ display: flex; align-items: center; justify-content: space-between; gap: 8px; }}
   .ip-panel h3 {{ font-size: 0.875rem; margin: 0 0 4px 0; color: #7aa2f7; flex-shrink: 0; }}
+  .ip-panel-close-btn {{ border: none; background: transparent; color: #565f89; cursor: pointer; font-size: 0.9rem; padding: 2px 4px; }}
+  .ip-panel-close-btn:hover {{ color: #f7768e; }}
   .ip-panel-path {{ font-size: 0.75rem; color: #565f89; margin: 0 0 8px 0; word-break: break-all; flex-shrink: 0; }}
   .ip-panel .hint {{ font-size: 0.75rem; color: #565f89; margin-bottom: 8px; flex-shrink: 0; }}
+  .ip-sort-group {{ display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }}
+  .ip-sort-btn {{
+    flex: 1 1 auto;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    background: #1a1b26;
+    color: #a9b1d6;
+    border: 1px solid #414868;
+    border-radius: 4px;
+    cursor: pointer;
+  }}
+  .ip-sort-btn.active {{ background: #7aa2f7; color: #1a1b26; border-color: #7aa2f7; }}
   .ip-filter-wrap {{ margin-bottom: 8px; }}
   .ip-filter {{
     width: 100%;
@@ -637,7 +695,12 @@ def render_html(
 <div class="main-inner">
 <div class="main-left">
 <h1>{title}<a href="https://github.com/sin2503/log-fooot" class="title-repo-link" target="_blank" rel="noopener noreferrer">{title_repo_link}</a></h1>
-<p class="meta">{meta_pages}: {len(all_paths)} / {meta_sessions}: {len(sessions)} / {meta_edges}: {len(edges_with_ips)} / {meta_generated_at_label}: {generated_at}</p>
+<p class="meta meta-inline">
+  <span>{meta_pages}: {len(all_paths)}</span>
+  <span>{meta_sessions}: {len(sessions)}</span>
+  <span>{meta_edges}: {len(edges_with_ips)}</span>
+  <span>{meta_generated_at_label}: {generated_at}</span>
+</p>
 <div class="tabs">
   <button type="button" class="tab-btn active" data-tab="transition">{tab_transition}</button>
   <button type="button" class="tab-btn" data-tab="inout">{tab_inout}</button>
@@ -678,9 +741,17 @@ def render_html(
 <div class="ip-panel" id="ip-panel">
   <p class="ip-panel-empty" id="ip-panel-empty">{ip_panel_empty}</p>
   <div class="ip-panel-content" id="ip-panel-content">
-    <h3 id="ip-panel-title">{ip_panel_title}</h3>
+    <div class="ip-panel-header">
+      <h3 id="ip-panel-title">{ip_panel_title}</h3>
+      <button type="button" class="ip-panel-close-btn" id="ip-panel-close-btn">×</button>
+    </div>
     <p class="ip-panel-path" id="ip-panel-path"></p>
     <p class="hint" id="ip-panel-hint">{ip_panel_hint}</p>
+  <div class="ip-sort-group" id="ip-sort-group">
+    <button type="button" class="ip-sort-btn active" data-mode="default">{ip_sort_default}</button>
+    <button type="button" class="ip-sort-btn" data-mode="sessions_desc">{ip_sort_sessions_desc}</button>
+    <button type="button" class="ip-sort-btn" data-mode="sessions_asc">{ip_sort_sessions_asc}</button>
+  </div>
     <div class="ip-filter-wrap">
       <input type="text" class="ip-filter" id="ip-filter" placeholder="{ip_filter_placeholder}" autocomplete="off"/>
     </div>
@@ -719,19 +790,25 @@ def render_html(
   var ipPanelPath = document.getElementById('ip-panel-path');
   var ipListEl = document.getElementById('ip-list');
   var ipFilterEl = document.getElementById('ip-filter');
+  var ipSortGroupEl = document.getElementById('ip-sort-group');
+  var ipSortButtons = ipSortGroupEl ? ipSortGroupEl.querySelectorAll('.ip-sort-btn') : [];
   var ipFlowEl = document.getElementById('ip-flow');
   var ipFlowBody = document.getElementById('ip-flow-body');
   var ipFlowSelectedIp = document.getElementById('ip-flow-selected-ip');
   var ipFlowGoogleLink = document.getElementById('ip-flow-google-link');
   var clearBtns = document.querySelectorAll('.ip-clear-btn');
+  var ipPanelCloseBtn = document.getElementById('ip-panel-close-btn');
   var selectedIp = null;
   var currentIps = [];
+  var currentPath = null;
+  var currentIpSortMode = 'default';
 
   var SIDEBAR_STORAGE_KEY = 'log-fooot-sidebar-width';
   var SIDEBAR_COLLAPSED_KEY = 'log-fooot-sidebar-collapsed';
   var sidebar = document.getElementById('sidebar');
   var sidebarToggle = document.getElementById('sidebar-toggle');
   var resizer = document.getElementById('sidebar-resizer');
+  var mainRight = document.querySelector('.main-right');
   var excludeListEl = document.getElementById('exclude-list');
   var excludeInput = document.getElementById('exclude-ip-input');
   var excludeAddBtn = document.getElementById('exclude-add-btn');
@@ -897,6 +974,20 @@ def render_html(
   }}
   renderExcludePathList();
   applyPathExclusions();
+
+  if (ipSortButtons && ipSortButtons.length) {{
+    ipSortButtons.forEach(function(btn) {{
+      btn.addEventListener('click', function(e) {{
+        e.stopPropagation();
+        var mode = btn.getAttribute('data-mode') || 'default';
+        currentIpSortMode = mode;
+        ipSortButtons.forEach(function(b) {{ b.classList.toggle('active', b === btn); }});
+        if (currentIps && currentPath) {{
+          renderIpList(currentIps, ipFilterEl ? ipFilterEl.value : '', currentPath);
+        }}
+      }});
+    }});
+  }}
 
   (function initTabs() {{
     var tabBtns = document.querySelectorAll('.tab-btn');
@@ -1163,11 +1254,13 @@ def render_html(
     if (ipPanelEmpty) ipPanelEmpty.style.display = '';
     if (ipPanelContent) ipPanelContent.classList.remove('visible');
     if (ipPanelPath) ipPanelPath.textContent = '';
+    if (mainRight) mainRight.classList.remove('open');
   }}
   function showIpPanelContent(path) {{
     if (ipPanelEmpty) ipPanelEmpty.style.display = 'none';
     if (ipPanelContent) ipPanelContent.classList.add('visible');
     if (ipPanelPath) ipPanelPath.textContent = (langStrings.panelPathLabel || 'Path') + ': ' + (path || '/');
+    if (mainRight) mainRight.classList.add('open');
   }}
 
   function clearIpSelection() {{
@@ -1185,10 +1278,38 @@ def render_html(
   }}
 
   clearBtns.forEach(function(btn) {{ btn.addEventListener('click', function(e) {{ e.stopPropagation(); clearIpSelection(); }}); }});
+  if (ipPanelCloseBtn) ipPanelCloseBtn.addEventListener('click', function(e) {{ e.stopPropagation(); showIpPanelEmpty(); clearIpSelection(); }});
 
-  function renderIpList(ips, filterStr) {{
+  function countSessionsForIpOnPath(ip, path) {{
+    var sessions = ipToSessions[ip] || [];
+    var count = 0;
+    sessions.forEach(function(steps) {{
+      if (!Array.isArray(steps)) return;
+      for (var i = 0; i < steps.length; i++) {{
+        if ((steps[i].path || '/') === path) {{
+          count++;
+          break;
+        }}
+      }}
+    }});
+    return count;
+  }}
+
+  function renderIpList(ips, filterStr, path) {{
     var q = (filterStr || '').trim().toLowerCase();
-    var filtered = q ? ips.filter(function(ip) {{ return ip.toLowerCase().indexOf(q) !== -1; }}) : ips;
+    var filtered = q ? ips.filter(function(ip) {{ return ip.toLowerCase().indexOf(q) !== -1; }}) : ips.slice();
+
+    if (path) {{
+      var mode = currentIpSortMode;
+      if (mode === 'sessions_desc' || mode === 'sessions_asc') {{
+        filtered.sort(function(a, b) {{
+          var ca = countSessionsForIpOnPath(a, path);
+          var cb = countSessionsForIpOnPath(b, path);
+          return mode === 'sessions_desc' ? cb - ca : ca - cb;
+        }});
+      }}
+      // mode === 'default' のときは pathToIps の順序そのまま（ips.slice() 済み）
+    }}
     ipListEl.innerHTML = '';
     filtered.forEach(function(ip) {{
       var btn = document.createElement('button');
@@ -1206,7 +1327,7 @@ def render_html(
   }}
 
   if (ipFilterEl) {{
-    ipFilterEl.addEventListener('input', function() {{ renderIpList(currentIps, ipFilterEl.value); }});
+    ipFilterEl.addEventListener('input', function() {{ renderIpList(currentIps, ipFilterEl.value, currentPath); }});
     ipFilterEl.addEventListener('keydown', function(e) {{ e.stopPropagation(); }});
   }}
 
@@ -1219,9 +1340,10 @@ def render_html(
     }}
     showIpPanelContent(path);
     currentIps = ips;
+    currentPath = path;
     if (ipFilterEl) ipFilterEl.value = '';
     panelTitle.textContent = (langStrings.panelTitleWithCount || 'Visitor IPs for this page ({count})').replace('{{count}}', ips.length);
-    renderIpList(ips, '');
+    renderIpList(ips, '', path);
     if (selectedIp && ips.indexOf(selectedIp) !== -1) {{
       selectIp(selectedIp);
     }} else if (selectedIp) {{
