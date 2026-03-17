@@ -132,6 +132,25 @@ def main() -> None:
     sessions_path = _out_path(args.output_sessions, "sessions.json")
     report_path = _out_path(args.output_report, "report.html")
 
+    # ここで除外 IP / パスを読み込んでおく（クロール・解析の両方で使う）
+    exclude_ips_path = args.exclude_ips.strip()
+    if not exclude_ips_path and (out_dir / "exclude_ips.csv").exists():
+        exclude_ips_path = str(out_dir / "exclude_ips.csv")
+    exclude_ips: set[str] = set()
+    if exclude_ips_path:
+        exclude_ips = load_exclude_ips(exclude_ips_path)
+        if exclude_ips:
+            print(f"除外 IP を読み込みました: {exclude_ips_path} ({len(exclude_ips)} 件)")
+
+    exclude_paths_path = args.exclude_paths.strip()
+    exclude_paths: set[str] = set()
+    if not exclude_paths_path and (out_dir / "exclude_paths.csv").exists():
+        exclude_paths_path = str(out_dir / "exclude_paths.csv")
+    if exclude_paths_path:
+        exclude_paths = load_exclude_paths(exclude_paths_path)
+        if exclude_paths:
+            print(f"除外パス/ファイルを読み込みました: {exclude_paths_path} ({len(exclude_paths)} 件)")
+
     if args.analyze_only:
         if not args.log_path:
             print("--analyze-only の場合は --log-path が必須です。", file=sys.stderr)
@@ -168,33 +187,6 @@ def main() -> None:
     if not args.log_path:
         print("ログ解析をスキップ（--log-path 未指定）")
         return
-
-    exclude_ips_path = args.exclude_ips.strip()
-    if not exclude_ips_path and (out_dir / "exclude_ips.csv").exists():
-        exclude_ips_path = str(out_dir / "exclude_ips.csv")
-    exclude_ips: set[str] = set()
-    if exclude_ips_path:
-        exclude_ips = load_exclude_ips(exclude_ips_path)
-        if exclude_ips:
-            print(f"除外 IP を読み込みました: {exclude_ips_path} ({len(exclude_ips)} 件)")
-
-    exclude_paths_path = args.exclude_paths.strip()
-    exclude_paths: set[str] = set()
-    if not exclude_paths_path and (out_dir / "exclude_paths.csv").exists():
-        exclude_paths_path = str(out_dir / "exclude_paths.csv")
-    if exclude_paths_path:
-        exclude_paths = load_exclude_paths(exclude_paths_path)
-        if exclude_paths:
-            print(f"除外パス/ファイルを読み込みました: {exclude_paths_path} ({len(exclude_paths)} 件)")
-
-    exclude_paths_path = args.exclude_paths.strip()
-    if not exclude_paths_path and (out_dir / "exclude_paths.csv").exists():
-        exclude_paths_path = str(out_dir / "exclude_paths.csv")
-    exclude_paths: set[str] = set()
-    if exclude_paths_path:
-        exclude_paths = load_exclude_paths(exclude_paths_path)
-        if exclude_paths:
-            print(f"除外パス/ファイルを読み込みました: {exclude_paths_path} ({len(exclude_paths)} 件)")
 
     base_netloc = urlparse(args.base_url or "https://example.com").netloc
     print(f"ログ解析中: {args.log_path}")
