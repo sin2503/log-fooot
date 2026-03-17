@@ -1280,19 +1280,10 @@ def render_html(
   clearBtns.forEach(function(btn) {{ btn.addEventListener('click', function(e) {{ e.stopPropagation(); clearIpSelection(); }}); }});
   if (ipPanelCloseBtn) ipPanelCloseBtn.addEventListener('click', function(e) {{ e.stopPropagation(); showIpPanelEmpty(); clearIpSelection(); }});
 
-  function countSessionsForIpOnPath(ip, path) {{
+  // IP ごとのセッション数（全パス対象）。セッション一覧 ipToSessions[ip] の長さ。
+  function countSessionsForIp(ip) {{
     var sessions = ipToSessions[ip] || [];
-    var count = 0;
-    sessions.forEach(function(steps) {{
-      if (!Array.isArray(steps)) return;
-      for (var i = 0; i < steps.length; i++) {{
-        if ((steps[i].path || '/') === path) {{
-          count++;
-          break;
-        }}
-      }}
-    }});
-    return count;
+    return Array.isArray(sessions) ? sessions.length : 0;
   }}
 
   function renderIpList(ips, filterStr, path) {{
@@ -1303,8 +1294,8 @@ def render_html(
       var mode = currentIpSortMode;
       if (mode === 'sessions_desc' || mode === 'sessions_asc') {{
         filtered.sort(function(a, b) {{
-          var ca = countSessionsForIpOnPath(a, path);
-          var cb = countSessionsForIpOnPath(b, path);
+          var ca = countSessionsForIp(a);
+          var cb = countSessionsForIp(b);
           return mode === 'sessions_desc' ? cb - ca : ca - cb;
         }});
       }}
