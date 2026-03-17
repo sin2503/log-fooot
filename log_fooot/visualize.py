@@ -10,6 +10,7 @@ import json
 import math
 import re
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .crawl import PageInfo
@@ -136,6 +137,7 @@ LANG = {
         "meta_pages": "Pages",
         "meta_sessions": "Sessions",
         "meta_edges": "Transition edges",
+        "meta_generated_at": "Generated at",
         "tab_transition": "Transitions",
         "tab_inout": "In/Out",
         "card_filter_placeholder": "Filter by path or title...",
@@ -175,6 +177,7 @@ LANG = {
         "meta_pages": "ページ数",
         "meta_sessions": "セッション数",
         "meta_edges": "遷移エッジ数",
+        "meta_generated_at": "生成日時",
         "tab_transition": "遷移図",
         "tab_inout": "IN/OUT",
         "card_filter_placeholder": "パスまたはタイトルでフィルタ...",
@@ -356,6 +359,7 @@ def render_html(
     meta_pages = t["meta_pages"]
     meta_sessions = t["meta_sessions"]
     meta_edges = t["meta_edges"]
+    meta_generated_at_label = t["meta_generated_at"]
     tab_transition = t["tab_transition"]
     tab_inout = t["tab_inout"]
     card_filter_placeholder = t["card_filter_placeholder"]
@@ -382,6 +386,9 @@ def render_html(
     ip_panel_empty = t["ip_panel_empty"]
     ua_table_ua = t["ua_table_ua"]
     ua_table_count = t["ua_table_count"]
+
+    # レポート生成日時（ローカルタイムゾーン）
+    generated_at = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
 
     html = f"""<!DOCTYPE html>
 <html lang="ja">
@@ -630,7 +637,7 @@ def render_html(
 <div class="main-inner">
 <div class="main-left">
 <h1>{title}<a href="https://github.com/sin2503/log-fooot" class="title-repo-link" target="_blank" rel="noopener noreferrer">{title_repo_link}</a></h1>
-<p class="meta">{meta_pages}: {len(all_paths)} / {meta_sessions}: {len(sessions)} / {meta_edges}: {len(edges_with_ips)}</p>
+<p class="meta">{meta_pages}: {len(all_paths)} / {meta_sessions}: {len(sessions)} / {meta_edges}: {len(edges_with_ips)} / {meta_generated_at_label}: {generated_at}</p>
 <div class="tabs">
   <button type="button" class="tab-btn active" data-tab="transition">{tab_transition}</button>
   <button type="button" class="tab-btn" data-tab="inout">{tab_inout}</button>
