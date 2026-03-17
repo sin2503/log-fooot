@@ -109,7 +109,7 @@ log_format combined '$remote_addr - $remote_user [$time_local] '
 
 ## サンプル
 
-同梱の `sample_access.log` は nginx COMBINED 形式のサンプルです。sitemap を用意したうえで解析のみ試す例:
+~~同梱の `sample_access.log` は nginx COMBINED 形式のサンプルです。sitemap を用意したうえで解析のみ試す例:~~
 
 ```bash
 # 事前に result/sitemap.json を用意している場合
@@ -150,7 +150,7 @@ MIT License（[LICENSE](LICENSE)）
 
 ## 開発メモ（コントリビュート）
 
-このリポジトリでは、コミットメッセージに **Conventional Commits** 形式を採用しています。詳しくはルートにある `.cursorrules` を参照してください。
+このリポジトリでは、コミットメッセージに **Conventional Commits** 形式を採用しています。~~詳しくはルートにある `.cursorrules` を参照してください。~~
 
 - **type の例**: `feat`, `fix`, `docs`, `refactor`, `test`, `chore` など  
 - **scope の例**: `cli`, `crawl`, `sessions`, `visualize`, `logparser`, `exclude`, `sample`, `docs`, `config`, `deps` など  
