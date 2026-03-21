@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import math
 import re
@@ -249,11 +250,14 @@ def render_html(
     カード（ページ）と遷移の線を描いた HTML を出力する。
     excluded_ips: レポート作成時に集計から除外した IP のリスト（左サイドバーに表示）。
     lang: 表示言語 "en" または "ja"（既定: "en"）。
+    title: 言語別の既定タイトルの前に付けるプレフィックス（任意）。
     """
     lang = "ja" if lang == "ja" else "en"
     t = LANG[lang]
-    if not title:
-        title = t["title"]
+    base_title = t["title"]
+    prefix = title.strip()
+    title_text = f"{prefix} {base_title}" if prefix else base_title
+    title_esc = html.escape(title_text, quote=False)
 
     excluded_path_set = set(excluded_paths or [])
 
@@ -399,12 +403,12 @@ def render_html(
     # レポート生成日時（ローカルタイムゾーン）
     generated_at = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
 
-    html = f"""<!DOCTYPE html>
+    html_doc = f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>{title}</title>
+<title>{title_esc}</title>
 <style>
   * {{ box-sizing: border-box; }}
   body {{ font-family: system-ui, "Segoe UI", sans-serif; margin: 0; padding: 0; background: #1a1b26; color: #c0caf5; }}
@@ -694,7 +698,7 @@ def render_html(
 <div class="main">
 <div class="main-inner">
 <div class="main-left">
-<h1>{title}<a href="https://github.com/sin2503/log-fooot" class="title-repo-link" target="_blank" rel="noopener noreferrer">{title_repo_link}</a></h1>
+<h1>{title_esc}<a href="https://github.com/sin2503/log-fooot" class="title-repo-link" target="_blank" rel="noopener noreferrer">{title_repo_link}</a></h1>
 <p class="meta meta-inline">
   <span>{meta_pages}: {len(all_paths)}</span>
   <span>{meta_sessions}: {len(sessions)}</span>
@@ -1390,7 +1394,7 @@ def render_html(
 """
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(output_path).write_text(html, encoding="utf-8")
+    Path(output_path).write_text(html_doc, encoding="utf-8")
 
 
 def save_sitemap_json(sitemap: dict[str, PageInfo], output_path: str | Path) -> None:
