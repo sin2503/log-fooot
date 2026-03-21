@@ -112,6 +112,12 @@ def main() -> None:
         default="en",
         help="レポートの表示言語（既定: en）",
     )
+    parser.add_argument(
+        "--title",
+        type=str,
+        default="",
+        help="レポートの <title> と画面上のメイン見出し（h1）の先頭に付ける文字列（未指定時は追加なし）",
+    )
 
     args = parser.parse_args()
     out_dir = Path(args.output_dir)
@@ -213,6 +219,7 @@ def main() -> None:
             sessions,
             report_path,
             base_url=args.base_url,
+            title=args.title.strip(),
             excluded_ips=list(exclude_ips),
             excluded_paths=list(exclude_paths),
             lang=args.lang,
