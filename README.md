@@ -86,6 +86,7 @@ python -m log_fooot \
 | `--output-sessions` | sessions の出力ファイル名またはパス | `sessions.json` |
 | `--output-report` | レポート HTML の出力ファイル名またはパス | `report.html` / `/var/www/report.html` |
 | `--lang` | レポートの表示言語（`en` / `ja`、既定: `en`） | `ja` |
+| `--title` | ブラウザタブの `<title>` と画面上のメイン見出し（h1）の先頭に付ける文字列（未指定時は追加なし） | `"[staging] "` |
 
 - **出力ファイル名**: `--output-sitemap` / `--output-sessions` / `--output-report` でそれぞれの書き出し先を指定できます。ファイル名だけの場合は `--output-dir` の下に、パス（`/` や `\` を含む）の場合はそのパスに出力します。
 - **除外 IP**: 未指定でも `--output-dir` に `exclude_ips.csv` があれば自動で読み込み、その IP はセッション集計に含めません。レポートの左サイドバーで除外一覧の確認・追加・CSV 取り込み・ダウンロードができます。
