@@ -1480,7 +1480,7 @@ def render_html(
     currentIps = ips;
     currentPath = path;
     if (ipFilterEl) ipFilterEl.value = '';
-    panelTitle.textContent = (langStrings.panelTitleWithCount || 'Visitor IPs for this page ({count})').replace('{{count}}', ips.length);
+    panelTitle.textContent = (langStrings.panelTitleWithCount || 'Visitor IPs for this page ({{count}})').replace('{{count}}', ips.length);
     renderIpList(ips, '', path);
     if (selectedIp && ips.indexOf(selectedIp) !== -1) {{
       selectIp(selectedIp);
