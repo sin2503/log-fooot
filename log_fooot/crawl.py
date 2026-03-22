@@ -7,12 +7,18 @@
 from __future__ import annotations
 
 import time
+import warnings
 from dataclasses import dataclass, field
 from urllib.parse import unquote, urljoin, urlparse, urlunparse
 from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
+
+try:
+    from bs4 import XMLParsedAsHTMLWarning
+except ImportError:  # 古い beautifulsoup4
+    XMLParsedAsHTMLWarning = None  # type: ignore[misc, assignment]
 
 from .exclude_paths import is_excluded_path
 
@@ -41,6 +47,18 @@ def _normalize_url(base: str, url: str) -> str:
 def _same_origin(base_netloc: str, url: str) -> bool:
     parsed = urlparse(url)
     return parsed.netloc == base_netloc or (parsed.netloc == "" and url.startswith("/"))
+
+
+def _soup_from_response_text(text: str) -> BeautifulSoup:
+    """
+    html.parser でパースする。XML（sitemap.xml 等）が混ざると BS4 が警告を出すが、
+    リンク抽出用途では問題にならないためその警告だけ抑止する。
+    """
+    if XMLParsedAsHTMLWarning is not None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", XMLParsedAsHTMLWarning)
+            return BeautifulSoup(text, "html.parser")
+    return BeautifulSoup(text, "html.parser")
 
 
 def _path_from_url(url: str) -> str:
@@ -109,7 +127,7 @@ def crawl(
                 time.sleep(delay_seconds)
             continue
 
-        soup = BeautifulSoup(resp.text, "html.parser")
+        soup = _soup_from_response_text(resp.text)
         title_tag = soup.find("title")
         title = (title_tag.get_text(strip=True) if title_tag else "") or path or "/"
 
