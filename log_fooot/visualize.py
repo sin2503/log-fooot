@@ -10,7 +10,7 @@ import html
 import json
 import math
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -139,6 +139,11 @@ LANG = {
         "meta_sessions": "Sessions",
         "meta_edges": "Transition edges",
         "meta_generated_at": "Generated at",
+        "meta_log_only_paths": "Log-only paths",
+        "log_only_section_title": "Paths in logs but not in crawl",
+        "log_only_section_hint": "These paths appear in the access log but were not in the crawled sitemap. They may be 404s, old URLs, or pages not reached from the crawl.",
+        "log_only_col_path": "Path",
+        "log_only_col_hits": "Requests",
         "tab_transition": "Transitions",
         "tab_inout": "In/Out",
         "card_filter_placeholder": "Filter by path or title...",
@@ -185,6 +190,11 @@ LANG = {
         "meta_sessions": "セッション数",
         "meta_edges": "遷移エッジ数",
         "meta_generated_at": "生成日時",
+        "meta_log_only_paths": "ログのみのパス",
+        "log_only_section_title": "ログにのみあるパス（クロールに無い）",
+        "log_only_section_hint": "アクセスログにはあるが、クロールで得たサイトマップに無いパスです。404・旧 URL・クロール未達の可能性があります。",
+        "log_only_col_path": "パス",
+        "log_only_col_hits": "リクエスト数",
         "tab_transition": "遷移図",
         "tab_inout": "IN/OUT",
         "card_filter_placeholder": "パスまたはタイトルでフィルタ...",
@@ -227,6 +237,78 @@ LANG = {
 }
 
 
+def diagram_paths_and_log_only_hits(
+    sitemap: dict[str, PageInfo],
+    sessions: list[Session],
+    excluded_path_set: set[str] | None = None,
+) -> tuple[list[str], list[tuple[str, int]]]:
+    """
+    遷移図のカード用パスと、「ログにあってクロール sitemap に無い」パスのリクエスト数一覧。
+
+    sitemap が空でないときはカードはクロール済みパス（除外設定後）のみ。ログのみのパスは一覧用に返す。
+    sitemap が空のときは従来どおり sitemap キーとログの和集合をカードに使い、ログのみ一覧は空。
+    """
+    excl = excluded_path_set or set()
+
+    def path_ok(p: str) -> bool:
+        return not excl or not is_excluded_path(p, excl)
+
+    if sitemap:
+        diagram_paths = [p for p in sitemap.keys() if path_ok(p)]
+        raw_keys = set(sitemap.keys())
+        ctr: Counter[str] = Counter()
+        for s in sessions:
+            for st in s.steps:
+                p = st.path
+                if not path_ok(p):
+                    continue
+                if p not in raw_keys:
+                    ctr[p] += 1
+        log_only_rows = sorted(ctr.items(), key=lambda x: (-x[1], x[0]))
+        return diagram_paths, log_only_rows
+
+    all_paths = list(sitemap.keys())
+    seen = set(all_paths)
+    for s in sessions:
+        for st in s.steps:
+            if st.path not in seen:
+                all_paths.append(st.path)
+                seen.add(st.path)
+    diagram = [p for p in all_paths if path_ok(p)]
+    if not diagram:
+        diagram = ["/"]
+    return diagram, []
+
+
+def _log_only_section_html(
+    rows: list[tuple[str, int]],
+    title: str,
+    hint: str,
+    col_path: str,
+    col_hits: str,
+) -> str:
+    """ログのみパス一覧セクション（行クリックで IP パネル用 data-path を付与）。"""
+    if not rows:
+        return ""
+    parts = [
+        '<div class="log-only-section">',
+        f'<h3 class="log-only-title">{html.escape(title)}</h3>',
+        f'<p class="exclude-hint log-only-hint">{html.escape(hint)}</p>',
+        '<div class="log-only-table-wrap">',
+        '<table class="log-only-table"><thead><tr>',
+        f"<th>{html.escape(col_path)}</th><th>{html.escape(col_hits)}</th></tr></thead><tbody>",
+    ]
+    for path, cnt in rows:
+        attr = html.escape(path, quote=True)
+        parts.append(
+            f'<tr class="log-only-path-row" tabindex="0" role="button" data-path="{attr}">'
+            f"<td><code>{html.escape(path)}</code></td>"
+            f'<td class="log-only-count">{cnt}</td></tr>'
+        )
+    parts.extend(["</tbody></table></div></div>"])
+    return "\n".join(parts)
+
+
 def _layout_cards(paths: list[str], card_width: int = 200, card_height: int = 100, gap: int = 24) -> dict[str, tuple[float, float]]:
     """パス一覧をグリッドに並べ、path -> (center_x, center_y) を返す。"""
     n = len(paths)
@@ -267,19 +349,8 @@ def render_html(
 
     excluded_path_set = set(excluded_paths or [])
 
-    all_paths = list(sitemap.keys())
-    seen_paths = set(all_paths)
-    for s in sessions:
-        for step in s.steps:
-            if step.path not in seen_paths:
-                all_paths.append(step.path)
-                seen_paths.add(step.path)
-
-    if excluded_path_set:
-        all_paths = [p for p in all_paths if not is_excluded_path(p, excluded_path_set)]
-
-    if not all_paths:
-        all_paths = ["/"]
+    diagram_paths, log_only_rows = diagram_paths_and_log_only_hits(sitemap, sessions, excluded_path_set)
+    diagram_path_set = set(diagram_paths)
 
     edges_with_ips = _collect_edges_with_ips(sessions)
     if excluded_path_set:
@@ -288,6 +359,10 @@ def render_html(
             for (a, b, c, ips) in edges_with_ips
             if not is_excluded_path(a, excluded_path_set) and not is_excluded_path(b, excluded_path_set)
         ]
+    edges_for_diagram = [
+        (a, b, c, ips) for (a, b, c, ips) in edges_with_ips if a in diagram_path_set and b in diagram_path_set
+    ]
+    diagram_edge_count = len(edges_for_diagram)
     path_to_ips = _path_to_ips(sessions)
     if excluded_path_set:
         path_to_ips = {p: ips for p, ips in path_to_ips.items() if not is_excluded_path(p, excluded_path_set)}
@@ -301,19 +376,19 @@ def render_html(
         },
         ensure_ascii=False,
     )
-    positions = _layout_cards(all_paths)
+    positions = _layout_cards(diagram_paths)
     card_width, card_height, gap = 200, 100, 24
 
-    path_to_title = {p: (sitemap[p].title if p in sitemap else p) for p in all_paths}
+    path_to_title = {p: (sitemap[p].title if p in sitemap else p) for p in diagram_paths}
 
     # SVG の描画領域
-    cols = max(1, math.ceil(math.sqrt(len(all_paths))))
-    rows = math.ceil(len(all_paths) / cols)
+    cols = max(1, math.ceil(math.sqrt(len(diagram_paths))))
+    rows = math.ceil(len(diagram_paths) / cols) if diagram_paths else 1
     svg_width = cols * (card_width + gap) + gap
     svg_height = rows * (card_height + gap) + gap
 
     lines_svg = []
-    for (a, b, count, ips) in sorted(edges_with_ips, key=lambda x: -x[2]):
+    for (a, b, count, ips) in sorted(edges_for_diagram, key=lambda x: -x[2]):
         if a not in positions or b not in positions:
             continue
         x1, y1 = positions[a]
@@ -329,7 +404,7 @@ def render_html(
         )
 
     cards_html = []
-    for path in all_paths:
+    for path in diagram_paths:
         pid = _path_to_id(path)
         x, y = positions[path]
         cx, cy = x - card_width / 2, y - card_height / 2
@@ -376,6 +451,11 @@ def render_html(
     meta_sessions = t["meta_sessions"]
     meta_edges = t["meta_edges"]
     meta_generated_at_label = t["meta_generated_at"]
+    meta_log_only_paths = t["meta_log_only_paths"]
+    log_only_section_title = t["log_only_section_title"]
+    log_only_section_hint = t["log_only_section_hint"]
+    log_only_col_path = t["log_only_col_path"]
+    log_only_col_hits = t["log_only_col_hits"]
     tab_transition = t["tab_transition"]
     tab_inout = t["tab_inout"]
     card_filter_placeholder = t["card_filter_placeholder"]
@@ -408,6 +488,19 @@ def render_html(
     ip_sort_default = t["ip_sort_default"]
     ip_sort_sessions_desc = t["ip_sort_sessions_desc"]
     ip_sort_sessions_asc = t["ip_sort_sessions_asc"]
+
+    log_only_section_html = _log_only_section_html(
+        log_only_rows,
+        log_only_section_title,
+        log_only_section_hint,
+        log_only_col_path,
+        log_only_col_hits,
+    )
+    meta_log_only_html = (
+        f'<span class="meta-log-only">{meta_log_only_paths}: {len(log_only_rows)}</span>'
+        if log_only_rows
+        else ""
+    )
 
     # レポート生成日時（ローカルタイムゾーン）
     generated_at = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
@@ -525,6 +618,20 @@ def render_html(
   .meta {{ font-size: 0.875rem; color: #565f89; margin-bottom: 12px; }}
   .meta-inline {{ display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }}
   .meta-inline span {{ white-space: nowrap; }}
+  .meta-log-only {{ color: #e0af68; }}
+  .log-only-section {{ margin-top: 8px; padding: 12px 0 8px 0; border-top: 1px solid #414868; }}
+  .log-only-title {{ font-size: 0.95rem; color: #7aa2f7; margin: 0 0 8px 0; font-weight: 600; }}
+  .log-only-hint {{ margin-bottom: 10px; }}
+  .log-only-table-wrap {{ overflow: auto; max-height: min(45vh, 420px); border: 1px solid #414868; border-radius: 6px; }}
+  .log-only-table {{ width: 100%; border-collapse: collapse; font-size: 0.8rem; }}
+  .log-only-table th, .log-only-table td {{ text-align: left; padding: 6px 10px; border-bottom: 1px solid #2f3549; }}
+  .log-only-table th {{ color: #a9b1d6; position: sticky; top: 0; background: #1a1b26; z-index: 1; }}
+  .log-only-table code {{ color: #c0caf5; font-size: 0.78rem; }}
+  .log-only-path-row {{ cursor: pointer; }}
+  .log-only-path-row:hover {{ background: #24283b; }}
+  .log-only-path-row:focus {{ outline: 1px solid #7aa2f7; outline-offset: -1px; }}
+  .log-only-path-row.log-only-row-selected {{ background: #2e3c64; box-shadow: inset 0 0 0 1px #7aa2f7; }}
+  .log-only-count {{ text-align: right; font-variant-numeric: tabular-nums; color: #7aa2f7; }}
   .tabs {{ display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }}
   .tab-btn {{ padding: 8px 16px; font-size: 0.875rem; background: #414868; color: #a9b1d6; border: none; border-radius: 6px; cursor: pointer; }}
   .tab-btn:hover {{ background: #565f89; color: #c0caf5; }}
@@ -714,9 +821,10 @@ def render_html(
 <div class="main-left">
 <h1>{title_esc}<a href="https://github.com/sin2503/log-fooot" class="title-repo-link" target="_blank" rel="noopener noreferrer">{title_repo_link}</a></h1>
 <p class="meta meta-inline">
-  <span>{meta_pages}: {len(all_paths)}</span>
+  <span>{meta_pages}: {len(diagram_paths)}</span>
   <span>{meta_sessions}: {len(sessions)}</span>
-  <span>{meta_edges}: {len(edges_with_ips)}</span>
+  <span>{meta_edges}: {diagram_edge_count}</span>
+  {meta_log_only_html}
   <span>{meta_generated_at_label}: {generated_at}</span>
 </p>
 <div class="tabs">
@@ -738,6 +846,7 @@ def render_html(
 {"".join(cards_html)}
 </div>
 </div>
+{log_only_section_html}
 </div>
 <div id="tab-ua" class="tab-pane">
   <table class="ua-table" id="ua-table">
@@ -1138,6 +1247,7 @@ def render_html(
         label.style.cursor = 'pointer';
         label.addEventListener('click', function(e) {{
           e.stopPropagation();
+          clearLogOnlyRowSelection();
           showIpsForPath(r.path || '/');
         }});
         var barWrap = document.createElement('div');
@@ -1280,7 +1390,14 @@ def render_html(
     }});
   }}
 
+  function clearLogOnlyRowSelection() {{
+    document.querySelectorAll('.log-only-path-row.log-only-row-selected').forEach(function(r) {{
+      r.classList.remove('log-only-row-selected');
+    }});
+  }}
+
   function showIpPanelEmpty() {{
+    clearLogOnlyRowSelection();
     if (ipPanelEmpty) ipPanelEmpty.style.display = '';
     if (ipPanelContent) ipPanelContent.classList.remove('visible');
     if (ipPanelPath) ipPanelPath.textContent = '';
@@ -1378,12 +1495,41 @@ def render_html(
   cards.forEach(function(card) {{
     card.addEventListener('click', function(e) {{
       e.stopPropagation();
+      clearLogOnlyRowSelection();
       var path = card.getAttribute('data-path') || '/';
       card.classList.add('card-selected');
       cards.forEach(function(c) {{ if (c !== card) c.classList.remove('card-selected'); }});
       showIpsForPath(path);
     }});
   }});
+
+  function activateLogOnlyRow(row) {{
+    if (!row) return;
+    var p = row.getAttribute('data-path');
+    if (!p) return;
+    clearLogOnlyRowSelection();
+    row.classList.add('log-only-row-selected');
+    cards.forEach(function(c) {{ c.classList.remove('card-selected'); }});
+    showIpsForPath(p);
+  }}
+
+  var tabTransitionEl = document.getElementById('tab-transition');
+  if (tabTransitionEl) {{
+    tabTransitionEl.addEventListener('click', function(e) {{
+      var row = e.target.closest('.log-only-path-row');
+      if (!row) return;
+      e.stopPropagation();
+      activateLogOnlyRow(row);
+    }});
+    tabTransitionEl.addEventListener('keydown', function(e) {{
+      var row = e.target.closest('.log-only-path-row');
+      if (!row) return;
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      e.stopPropagation();
+      activateLogOnlyRow(row);
+    }});
+  }}
 
   function applyCardFilter() {{
     var q = (cardFilterEl && cardFilterEl.value || '').trim().toLowerCase();
@@ -1408,7 +1554,7 @@ def render_html(
   }}
 
   document.addEventListener('click', function(e) {{
-    if (panel.contains(e.target) || e.target.closest('.card')) return;
+    if (panel.contains(e.target) || e.target.closest('.card') || e.target.closest('.log-only-path-row')) return;
     showIpPanelEmpty();
     cards.forEach(function(c) {{ c.classList.remove('card-selected'); }});
     clearIpSelection();
