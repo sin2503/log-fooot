@@ -90,6 +90,7 @@ python -m log_fooot \
 
 - **出力ファイル名**: `--output-sitemap` / `--output-sessions` / `--output-report` でそれぞれの書き出し先を指定できます。ファイル名だけの場合は `--output-dir` の下に、パス（`/` や `\` を含む）の場合はそのパスに出力します。
 - **除外 IP**: 未指定でも `--output-dir` に `exclude_ips.csv` があれば自動で読み込み、その IP はセッション集計に含めません。レポートの左サイドバーで除外一覧の確認・追加・CSV 取り込み・ダウンロードができます。
+- **ユニーク IP の CSV**: レポートに埋め込まれたセッション由来のユニークな閲覧者 IP を、左サイドバー「除外パス / ファイル」の下のセクションから「ユニークIP CSV ダウンロード」（英語 UI では *Download unique visitor IPs (CSV)*）で `unique_visitor_ips.csv` として保存できます（1 列 `ip`、ヘッダー付き）。「除外 IP」とは別機能です。
 
 ### 出力ファイル
 
