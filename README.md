@@ -15,7 +15,7 @@ nginx の COMBINED アクセスログを IP ごとに解析し、サイト内の
 3. **可視化**  
    ページをカードとして表示し、ログから得られた「どの IP がどの順でページを見たか」を線で繋いだ HTML を出力します。  
    さらに、次のようなビューを切り替えて分析できます。
-   - 遷移図: 画面カードと遷移線。カードやパスをクリックすると、右カラムに「そのページを閲覧した IP」と、その IP ごとの閲覧の流れを表示
+   - 遷移図: **クロールで得たサイトマップ上のページだけ**をカード表示し、両端ともその範囲に収まる遷移だけを線で表示。ログにだけ存在するパス（未クロール・404 相当など想定）はカードに出さず、遷移図の**下の別セクション**にパスとリクエスト件数の一覧を表示。`sitemap.json` が空の解析のみモードでは従来どおりログ上のパスもカードに含めます。
    - IN/OUT: ページごとの「流入が多いページ」「流出が多いページ」の Top10 を横棒グラフで表示（パスをクリックすると右カラムに IP 一覧）
    - UA 一覧: User-Agent ごとのリクエスト件数ランキング
    - 時刻グラフ: 1時間ごとのリクエスト数を棒グラフで表示
@@ -122,14 +122,14 @@ python -m log_fooot --analyze-only --log-path ./sample_access.log --output-dir .
 ### 大きなサンプルで試す（20 画面・15000 行）
 
 ```bash
-# 20 画面の sitemap と 15000 行のログを生成
+# 15000 行の sample_access.log と、20 画面だけのデモ用 sitemap を生成
 python scripts/generate_sample_log.py
-# レポート生成
-python -m log_fooot --analyze-only --log-path ./sample_access.log --output-dir ./result --sitemap ./result/sitemap.json
+# デモ用 sitemap を渡すと、遷移図は 20 画面のみ。ログにだけあるパスは図の下に一覧表示される
+python -m log_fooot --analyze-only --log-path ./sample_access.log --output-dir ./result --sitemap ./scripts/sample_sitemap_demo.json
 ```
 
-- `result/sitemap.json` は 20 画面用にあらかじめ用意済みです。
-- `scripts/generate_sample_log.py` を実行すると `sample_access.log` が 15000 行で上書きされます。
+- `scripts/generate_sample_log.py` は `sample_access.log` を上書きするほか、**`scripts/sample_sitemap_demo.json`**（上記 20 パスのみ）を出力します。ログの約 12% はサイトマップに無いパス（旧 URL・404 想定）が混ざります。
+- 既に手元の `result/sitemap.json` がある場合は、従来どおり `--sitemap ./result/sitemap.json` で解析できます。
 
 ## テスト
 
@@ -144,7 +144,7 @@ pytest
 
 - 主なテスト内容:
   - `tests/test_exclude_paths.py`: 除外パス/ファイルの読み書き・判定ロジック
-  - `tests/test_visualize_utils.py`: IN/OUT 集計、エラー集計、`excluded_paths` による表示除外の確認
+  - `tests/test_diagram_paths.py`: 遷移図カード対象と「ログのみパス」一覧の切り分けロジック
 
 ## ライセンス
 
