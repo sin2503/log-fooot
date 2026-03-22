@@ -151,6 +151,9 @@ LANG = {
         "sidebar_add_btn": "Add",
         "sidebar_import_btn": "Import CSV",
         "sidebar_export_btn": "Export CSV",
+        "unique_ips_export_btn": "Download unique visitor IPs (CSV)",
+        "unique_ips_section_title": "Visitor IPs in this report",
+        "unique_ips_section_hint": "Download unique visitor IPs embedded in this HTML as CSV. This is separate from \"Exclude IPs\" above and does not configure exclusions for the next CLI run.",
         "sidebar_exclude_paths_title": "Exclude paths/files",
         "sidebar_exclude_paths_hint": "Paths and files to exclude from crawling and visualization. Export as CSV and use --exclude-paths or save as exclude_paths.csv in the output dir.",
         "sidebar_exclude_paths_placeholder": "Enter path (e.g. /admin, /static/logo.png)",
@@ -194,6 +197,9 @@ LANG = {
         "sidebar_add_btn": "追加",
         "sidebar_import_btn": "CSV 取り込み",
         "sidebar_export_btn": "CSV ダウンロード",
+        "unique_ips_export_btn": "ユニークIP CSV ダウンロード",
+        "unique_ips_section_title": "このレポートの閲覧者 IP",
+        "unique_ips_section_hint": "この HTML に埋め込まれたユニークな閲覧者 IP を CSV で保存します。上の「除外 IP」とは別の機能で、次回の CLI 実行の除外設定にはなりません。",
         "sidebar_exclude_paths_title": "除外パス / ファイル",
         "sidebar_exclude_paths_hint": "クロール・可視化から除外するパスやファイルです。リストを編集して CSV をダウンロードし、次回は --exclude-paths で指定するか、出力先の exclude_paths.csv に保存して再生成してください。",
         "sidebar_exclude_paths_placeholder": "パスを入力（例: /admin, /static/logo.png）",
@@ -381,6 +387,9 @@ def render_html(
     sidebar_add_btn = t["sidebar_add_btn"]
     sidebar_import_btn = t["sidebar_import_btn"]
     sidebar_export_btn = t["sidebar_export_btn"]
+    unique_ips_export_btn = t["unique_ips_export_btn"]
+    unique_ips_section_title = t["unique_ips_section_title"]
+    unique_ips_section_hint = t["unique_ips_section_hint"]
     sidebar_exclude_paths_title = t["sidebar_exclude_paths_title"]
     sidebar_exclude_paths_hint = t["sidebar_exclude_paths_hint"]
     sidebar_exclude_paths_placeholder = t["sidebar_exclude_paths_placeholder"]
@@ -692,6 +701,11 @@ def render_html(
     <div class="exclude-btns">
       <button type="button" id="exclude-path-export-btn">{sidebar_exclude_paths_export_btn}</button>
     </div>
+    <h4 style="margin-top:16px;font-size:0.85rem;color:#7aa2f7;">{unique_ips_section_title}</h4>
+    <p class="exclude-hint">{unique_ips_section_hint}</p>
+    <div class="exclude-btns">
+      <button type="button" id="unique-ips-export-btn">{unique_ips_export_btn}</button>
+    </div>
   </div>
 </div>
 <div class="sidebar-resizer" id="sidebar-resizer"></div>
@@ -891,6 +905,18 @@ def render_html(
       var a = document.createElement('a');
       a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
       a.download = 'exclude_ips.csv';
+      a.click();
+    }});
+  }}
+  var uniqueIpsExportBtn = document.getElementById('unique-ips-export-btn');
+  if (uniqueIpsExportBtn) {{
+    uniqueIpsExportBtn.addEventListener('click', function() {{
+      var ips = Object.keys(ipToSessions || {{}});
+      ips.sort();
+      var csv = 'ip\\n' + ips.join('\\n');
+      var a = document.createElement('a');
+      a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+      a.download = 'unique_visitor_ips.csv';
       a.click();
     }});
   }}
