@@ -1,0 +1,122 @@
+{
+  "/": {
+    "url": "https://example.com/",
+    "path": "/",
+    "title": "Home",
+    "links_out": []
+  },
+  "/about": {
+    "url": "https://example.com/about",
+    "path": "/about",
+    "title": "Page about",
+    "links_out": []
+  },
+  "/contact": {
+    "url": "https://example.com/contact",
+    "path": "/contact",
+    "title": "Page contact",
+    "links_out": []
+  },
+  "/products": {
+    "url": "https://example.com/products",
+    "path": "/products",
+    "title": "Page products",
+    "links_out": []
+  },
+  "/page5": {
+    "url": "https://example.com/page5",
+    "path": "/page5",
+    "title": "Page page5",
+    "links_out": []
+  },
+  "/page6": {
+    "url": "https://example.com/page6",
+    "path": "/page6",
+    "title": "Page page6",
+    "links_out": []
+  },
+  "/page7": {
+    "url": "https://example.com/page7",
+    "path": "/page7",
+    "title": "Page page7",
+    "links_out": []
+  },
+  "/page8": {
+    "url": "https://example.com/page8",
+    "path": "/page8",
+    "title": "Page page8",
+    "links_out": []
+  },
+  "/page9": {
+    "url": "https://example.com/page9",
+    "path": "/page9",
+    "title": "Page page9",
+    "links_out": []
+  },
+  "/page10": {
+    "url": "https://example.com/page10",
+    "path": "/page10",
+    "title": "Page page10",
+    "links_out": []
+  },
+  "/page11": {
+    "url": "https://example.com/page11",
+    "path": "/page11",
+    "title": "Page page11",
+    "links_out": []
+  },
+  "/page12": {
+    "url": "https://example.com/page12",
+    "path": "/page12",
+    "title": "Page page12",
+    "links_out": []
+  },
+  "/page13": {
+    "url": "https://example.com/page13",
+    "path": "/page13",
+    "title": "Page page13",
+    "links_out": []
+  },
+  "/page14": {
+    "url": "https://example.com/page14",
+    "path": "/page14",
+    "title": "Page page14",
+    "links_out": []
+  },
+  "/page15": {
+    "url": "https://example.com/page15",
+    "path": "/page15",
+    "title": "Page page15",
+    "links_out": []
+  },
+  "/page16": {
+    "url": "https://example.com/page16",
+    "path": "/page16",
+    "title": "Page page16",
+    "links_out": []
+  },
+  "/page17": {
+    "url": "https://example.com/page17",
+    "path": "/page17",
+    "title": "Page page17",
+    "links_out": []
+  },
+  "/page18": {
+    "url": "https://example.com/page18",
+    "path": "/page18",
+    "title": "Page page18",
+    "links_out": []
+  },
+  "/page19": {
+    "url": "https://example.com/page19",
+    "path": "/page19",
+    "title": "Page page19",
+    "links_out": []
+  },
+  "/page20": {
+    "url": "https://example.com/page20",
+    "path": "/page20",
+    "title": "Page page20",
+    "links_out": []
+  }
+}
