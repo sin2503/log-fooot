@@ -88,24 +88,35 @@ def _ip_to_sessions(sessions: list[Session]) -> dict[str, list[list[dict]]]:
 
 
 def _error_counts(sessions: list[Session]) -> list[dict]:
-    """4xx/5xx ごとの IP 別エラー回数。[{status, ips: [{ip, count}, ...]}, ...] を返す。"""
-    status_ip_counts: dict[int, dict[str, int]] = defaultdict(dict)
+    """4xx/5xx ごとの IP 別エラー回数と、そのステータスで返したパス別件数。
+
+    [{status, ips: [{ip, count, paths: [{path, count}, ...]}, ...]}, ...] を返す。
+    paths は件数降順、同数ならパス文字列昇順。
+    """
+    status_ip_paths: dict[int, dict[str, Counter[str]]] = defaultdict(lambda: defaultdict(Counter))
     for s in sessions:
         for st in s.steps:
             if 400 <= st.status < 600:
-                by_ip = status_ip_counts.setdefault(st.status, {})
-                by_ip[s.ip] = by_ip.get(s.ip, 0) + 1
+                p = st.path or "/"
+                status_ip_paths[st.status][s.ip][p] += 1
 
     result: list[dict] = []
-    for status in sorted(status_ip_counts.keys()):
-        ip_counts = status_ip_counts[status]
-        ips_sorted = sorted(ip_counts.items(), key=lambda x: -x[1])
-        result.append(
-            {
-                "status": status,
-                "ips": [{"ip": ip, "count": c} for ip, c in ips_sorted],
-            }
-        )
+    for status in sorted(status_ip_paths.keys()):
+        by_ip = status_ip_paths[status]
+        ip_total = {ip: sum(cnt.values()) for ip, cnt in by_ip.items()}
+        ips_sorted = sorted(ip_total.items(), key=lambda x: -x[1])
+        ips_out: list[dict] = []
+        for ip, total in ips_sorted:
+            counter = by_ip[ip]
+            paths_sorted = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
+            ips_out.append(
+                {
+                    "ip": ip,
+                    "count": total,
+                    "paths": [{"path": path, "count": c} for path, c in paths_sorted],
+                }
+            )
+        result.append({"status": status, "ips": ips_out})
     return result
 
 
@@ -150,6 +161,10 @@ LANG = {
         "tab_ua": "UA List",
         "tab_time": "Time chart",
         "tab_error": "Errors",
+        "error_panel_title": "HTTP {status} — {ip}",
+        "error_panel_hint": "URLs that returned this HTTP status for this IP in the access log.",
+        "error_table_path": "Path",
+        "error_table_count": "Requests",
         "sidebar_exclude_title": "Exclude IPs",
         "sidebar_exclude_hint": "IPs excluded from this report. Edit the list, export as CSV, and use --exclude-ips on the next run or save as exclude_ips.csv in the output dir.",
         "sidebar_add_placeholder": "Enter IP",
@@ -201,6 +216,10 @@ LANG = {
         "tab_ua": "UA一覧",
         "tab_time": "時刻グラフ",
         "tab_error": "エラー",
+        "error_panel_title": "HTTP {status} — {ip}",
+        "error_panel_hint": "アクセスログ上で、この IP がこのステータスで応答した URL です。",
+        "error_table_path": "パス",
+        "error_table_count": "件数",
         "sidebar_exclude_title": "除外 IP",
         "sidebar_exclude_hint": "レポート作成時に集計から除外した IP です。リストを編集して CSV をエクスポートし、次回は --exclude-ips で指定するか、出力先の exclude_ips.csv に保存して再生成してください。",
         "sidebar_add_placeholder": "IP を入力",
@@ -443,6 +462,11 @@ def render_html(
             "toggleExpandTitle": t["toggle_expand_title"],
             "timeLocale": t["time_locale"],
             "ipFlowGoogleLink": t["ip_flow_google_link"],
+            "ipPanelHint": t["ip_panel_hint"],
+            "errorPanelTitle": t["error_panel_title"],
+            "errorPanelHint": t["error_panel_hint"],
+            "errorTablePath": t["error_table_path"],
+            "errorTableCount": t["error_table_count"],
         },
         ensure_ascii=False,
     )
@@ -461,6 +485,9 @@ def render_html(
     card_filter_placeholder = t["card_filter_placeholder"]
     tab_ua = t["tab_ua"]
     tab_time = t["tab_time"]
+    tab_error = t["tab_error"]
+    error_table_path = t["error_table_path"]
+    error_table_count = t["error_table_count"]
     sidebar_exclude_title = t["sidebar_exclude_title"]
     sidebar_exclude_hint = t["sidebar_exclude_hint"]
     sidebar_add_placeholder = t["sidebar_add_placeholder"]
@@ -677,10 +704,22 @@ def render_html(
   }}
   .error-chart {{ display: flex; flex-direction: column; gap: 12px; max-width: 800px; }}
   .error-section-title {{ font-size: 0.8rem; color: #bb9af7; margin: 0 0 4px 0; }}
-  .error-chart-row {{ display: flex; align-items: center; gap: 12px; }}
-  .error-chart-label {{ display: flex; align-items: center; gap: 6px; width: 140px; font-size: 0.75rem; font-family: ui-monospace, monospace; color: #565f89; flex-shrink: 0; }}
-  .error-chart-google-link {{ font-size: 0.7rem; color: #7aa2f7; }}
+  .error-chart-row {{ display: flex; align-items: center; gap: 12px; cursor: pointer; border-radius: 6px; padding: 4px 6px; margin: 0 -6px; }}
+  .error-chart-row:hover {{ background: #24283b; }}
+  .error-chart-row.error-chart-row-selected {{ background: #2e3c64; box-shadow: inset 0 0 0 1px #7aa2f7; }}
+  .error-chart-label {{ display: flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 140px; font-size: 0.75rem; font-family: ui-monospace, monospace; color: #a9b1d6; flex-shrink: 0; }}
+  .error-chart-google-link {{ font-size: 0.7rem; color: #7aa2f7; flex-shrink: 0; }}
   .error-chart-google-link:hover {{ text-decoration: underline; }}
+  .ip-panel-visitor {{ flex: 1; min-height: 0; display: flex; flex-direction: column; }}
+  .ip-panel-error-detail {{ display: none; flex: 1; min-height: 0; flex-direction: column; }}
+  .ip-panel-error-detail.visible {{ display: flex; }}
+  .error-url-table th:last-child {{ text-align: right; }}
+  .error-url-table-scroll {{ overflow: auto; max-height: min(55vh, 480px); margin-top: 8px; border: 1px solid #414868; border-radius: 6px; flex: 1; min-height: 0; }}
+  .error-url-table {{ width: 100%; border-collapse: collapse; font-size: 0.78rem; }}
+  .error-url-table th, .error-url-table td {{ padding: 6px 10px; text-align: left; border-bottom: 1px solid #2f3549; }}
+  .error-url-table th {{ color: #a9b1d6; position: sticky; top: 0; background: #1a1b26; z-index: 1; }}
+  .error-url-table td code {{ color: #c0caf5; font-size: 0.76rem; word-break: break-all; }}
+  .error-url-count {{ text-align: right; font-variant-numeric: tabular-nums; color: #7aa2f7; width: 72px; }}
   .error-chart-bar-wrap {{ flex: 1; height: 16px; background: #24283b; border-radius: 4px; overflow: hidden; }}
   .error-chart-bar {{ height: 100%; background: #f7768e; border-radius: 4px; min-width: 2px; }}
   .error-chart-count {{ width: 50px; font-size: 0.75rem; color: #a9b1d6; text-align: right; }}
@@ -832,7 +871,7 @@ def render_html(
   <button type="button" class="tab-btn" data-tab="inout">{tab_inout}</button>
   <button type="button" class="tab-btn" data-tab="ua">{tab_ua}</button>
   <button type="button" class="tab-btn" data-tab="time">{tab_time}</button>
-  <button type="button" class="tab-btn" data-tab="error">Errors</button>
+  <button type="button" class="tab-btn" data-tab="error">{tab_error}</button>
 </div>
 <div id="tab-transition" class="tab-pane active">
 <div class="card-filter-wrap">
@@ -874,6 +913,16 @@ def render_html(
     </div>
     <p class="ip-panel-path" id="ip-panel-path"></p>
     <p class="hint" id="ip-panel-hint">{ip_panel_hint}</p>
+    <div class="ip-panel-error-detail" id="ip-panel-error-detail">
+      <p class="hint" id="ip-panel-error-hint"></p>
+      <div class="error-url-table-scroll">
+        <table class="error-url-table" id="error-url-table">
+          <thead><tr><th>{error_table_path}</th><th>{error_table_count}</th></tr></thead>
+          <tbody id="error-url-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="ip-panel-visitor" id="ip-panel-visitor">
   <div class="ip-sort-group" id="ip-sort-group">
     <button type="button" class="ip-sort-btn active" data-mode="default">{ip_sort_default}</button>
     <button type="button" class="ip-sort-btn" data-mode="sessions_desc">{ip_sort_sessions_desc}</button>
@@ -889,6 +938,7 @@ def render_html(
       <div id="ip-flow-body"></div>
     </div>
     <button type="button" class="ip-clear-btn" id="ip-clear-btn" style="display:none">{ip_clear_btn}</button>
+    </div>
   </div>
 </div>
 </div>
@@ -925,6 +975,11 @@ def render_html(
   var ipFlowGoogleLink = document.getElementById('ip-flow-google-link');
   var clearBtns = document.querySelectorAll('.ip-clear-btn');
   var ipPanelCloseBtn = document.getElementById('ip-panel-close-btn');
+  var ipPanelVisitor = document.getElementById('ip-panel-visitor');
+  var ipPanelErrorDetail = document.getElementById('ip-panel-error-detail');
+  var ipPanelHint = document.getElementById('ip-panel-hint');
+  var ipPanelErrorHint = document.getElementById('ip-panel-error-hint');
+  var errorUrlTbody = document.getElementById('error-url-tbody');
   var selectedIp = null;
   var currentIps = [];
   var currentPath = null;
@@ -1186,7 +1241,7 @@ def render_html(
 
   (function initErrorChart() {{
     var chart = document.getElementById('error-chart');
-    if (!chart || !errorCounts.length || !chart) return;
+    if (!chart || !errorCounts.length) return;
     errorCounts.forEach(function(section) {{
       if (!section.ips || !section.ips.length) return;
       var title = document.createElement('p');
@@ -1198,14 +1253,21 @@ def render_html(
       section.ips.forEach(function(row) {{
         var wrap = document.createElement('div');
         wrap.className = 'error-chart-row';
+        wrap.setAttribute('role', 'button');
+        wrap.setAttribute('tabindex', '0');
         var label = document.createElement('span');
         label.className = 'error-chart-label';
+        var ipEl = document.createElement('span');
+        ipEl.className = 'error-chart-ip';
+        ipEl.textContent = row.ip;
         var glink = document.createElement('a');
         glink.className = 'error-chart-google-link';
         glink.href = 'https://www.google.com/search?q=' + encodeURIComponent(row.ip);
         glink.target = '_blank';
         glink.rel = 'noopener noreferrer';
-        glink.textContent = row.ip;
+        glink.textContent = '(' + (langStrings.ipFlowGoogleLink || 'Google') + ')';
+        label.appendChild(ipEl);
+        label.appendChild(document.createTextNode(' '));
         label.appendChild(glink);
         var barWrap = document.createElement('div');
         barWrap.className = 'error-chart-bar-wrap';
@@ -1219,6 +1281,26 @@ def render_html(
         wrap.appendChild(label);
         wrap.appendChild(barWrap);
         wrap.appendChild(count);
+        function activateRow() {{
+          clearLogOnlyRowSelection();
+          showErrorDetailPanel(section.status, row.ip, row.paths || []);
+          document.querySelectorAll('.error-chart-row-selected').forEach(function(el) {{
+            el.classList.remove('error-chart-row-selected');
+          }});
+          wrap.classList.add('error-chart-row-selected');
+        }}
+        wrap.addEventListener('click', function(e) {{
+          if (e.target.closest('a.error-chart-google-link')) return;
+          e.stopPropagation();
+          activateRow();
+        }});
+        wrap.addEventListener('keydown', function(e) {{
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          if (e.target.closest('a')) return;
+          e.preventDefault();
+          e.stopPropagation();
+          activateRow();
+        }});
         chart.appendChild(wrap);
       }});
     }});
@@ -1396,14 +1478,65 @@ def render_html(
     }});
   }}
 
+  function clearErrorChartRowSelection() {{
+    document.querySelectorAll('.error-chart-row-selected').forEach(function(el) {{
+      el.classList.remove('error-chart-row-selected');
+    }});
+  }}
+
+  function showErrorDetailPanel(status, ip, paths) {{
+    clearIpSelection();
+    clearErrorChartRowSelection();
+    cards.forEach(function(c) {{ c.classList.remove('card-selected'); }});
+    if (ipPanelEmpty) ipPanelEmpty.style.display = 'none';
+    if (ipPanelContent) ipPanelContent.classList.add('visible');
+    if (ipPanelVisitor) ipPanelVisitor.style.display = 'none';
+    if (ipPanelErrorDetail) ipPanelErrorDetail.classList.add('visible');
+    if (ipPanelPath) ipPanelPath.textContent = '';
+    if (ipPanelHint) ipPanelHint.style.display = 'none';
+    if (ipPanelErrorHint) ipPanelErrorHint.textContent = langStrings.errorPanelHint || '';
+    if (panelTitle) {{
+      panelTitle.textContent = (langStrings.errorPanelTitle || 'HTTP {{status}} — {{ip}}')
+        .replace('{{status}}', String(status)).replace('{{ip}}', ip);
+    }}
+    if (mainRight) mainRight.classList.add('open');
+    if (errorUrlTbody) {{
+      errorUrlTbody.innerHTML = '';
+      (paths || []).forEach(function(p) {{
+        var tr = document.createElement('tr');
+        var tdPath = document.createElement('td');
+        var code = document.createElement('code');
+        code.textContent = p.path || '/';
+        tdPath.appendChild(code);
+        var tdCount = document.createElement('td');
+        tdCount.className = 'error-url-count';
+        tdCount.textContent = (p.count != null ? p.count : 0).toLocaleString();
+        tr.appendChild(tdPath);
+        tr.appendChild(tdCount);
+        errorUrlTbody.appendChild(tr);
+      }});
+    }}
+  }}
+
   function showIpPanelEmpty() {{
     clearLogOnlyRowSelection();
+    clearErrorChartRowSelection();
+    if (ipPanelVisitor) ipPanelVisitor.style.display = '';
+    if (ipPanelErrorDetail) ipPanelErrorDetail.classList.remove('visible');
+    if (ipPanelHint) ipPanelHint.style.display = '';
     if (ipPanelEmpty) ipPanelEmpty.style.display = '';
     if (ipPanelContent) ipPanelContent.classList.remove('visible');
     if (ipPanelPath) ipPanelPath.textContent = '';
     if (mainRight) mainRight.classList.remove('open');
   }}
   function showIpPanelContent(path) {{
+    clearErrorChartRowSelection();
+    if (ipPanelVisitor) ipPanelVisitor.style.display = '';
+    if (ipPanelErrorDetail) ipPanelErrorDetail.classList.remove('visible');
+    if (ipPanelHint) {{
+      ipPanelHint.style.display = '';
+      if (langStrings.ipPanelHint) ipPanelHint.textContent = langStrings.ipPanelHint;
+    }}
     if (ipPanelEmpty) ipPanelEmpty.style.display = 'none';
     if (ipPanelContent) ipPanelContent.classList.add('visible');
     if (ipPanelPath) ipPanelPath.textContent = (langStrings.panelPathLabel || 'Path') + ': ' + (path || '/');
