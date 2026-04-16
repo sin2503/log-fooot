@@ -12,14 +12,6 @@ from dataclasses import dataclass, field
 from urllib.parse import unquote, urljoin, urlparse, urlunparse
 from pathlib import Path
 
-import requests
-from bs4 import BeautifulSoup
-
-try:
-    from bs4 import XMLParsedAsHTMLWarning
-except ImportError:  # 古い beautifulsoup4
-    XMLParsedAsHTMLWarning = None  # type: ignore[misc, assignment]
-
 from .exclude_paths import is_excluded_path
 
 
@@ -49,11 +41,18 @@ def _same_origin(base_netloc: str, url: str) -> bool:
     return parsed.netloc == base_netloc or (parsed.netloc == "" and url.startswith("/"))
 
 
-def _soup_from_response_text(text: str) -> BeautifulSoup:
+def _soup_from_response_text(text: str):
     """
     html.parser でパースする。XML（sitemap.xml 等）が混ざると BS4 が警告を出すが、
     リンク抽出用途では問題にならないためその警告だけ抑止する。
     """
+    from bs4 import BeautifulSoup
+
+    try:
+        from bs4 import XMLParsedAsHTMLWarning
+    except ImportError:  # 古い beautifulsoup4
+        XMLParsedAsHTMLWarning = None  # type: ignore[misc, assignment]
+
     if XMLParsedAsHTMLWarning is not None:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", XMLParsedAsHTMLWarning)
@@ -87,6 +86,8 @@ def crawl(
     Returns:
         path -> PageInfo の辞書（path は / 始まりの正規化パス）
     """
+    import requests
+
     base_parsed = urlparse(base_url)
     base_netloc = base_parsed.netloc
     base_scheme = base_parsed.scheme or "https"

@@ -19,12 +19,13 @@ nginx の COMBINED アクセスログを IP ごとに解析し、サイト内の
    - IN/OUT: ページごとの「流入が多いページ」「流出が多いページ」の Top10 を横棒グラフで表示（パスをクリックすると右カラムに IP 一覧）
    - UA 一覧: User-Agent ごとのリクエスト件数ランキング
    - 時刻グラフ: 1時間ごとのリクエスト数を棒グラフで表示
-   - エラー: HTTP 4xx/5xx をステータス別・IP 別に集計して表示（IP をクリックすると Google 検索を別タブで開く）
+   - エラー: HTTP 4xx/5xx をステータス別・IP 別に集計。**IP の行をクリック**すると右パネルに、そのステータスでその IP が返したパス一覧（件数付き）を表示。IP の横の小さなリンクのみ Google 検索を別タブで開く。
 
 ## 必要環境
 
 - Python 3.9+
-- （クロール時）対象サイトへの HTTP アクセス
+- （クロール時）`requests` / `beautifulsoup4`（`pip install -r requirements.txt`）および対象サイトへの HTTP アクセス
+- （`--analyze-only` のみ）上記の HTTP ライブラリは**インポートされない**ため、サンプルログだけ試す場合は venv なしの Python でも実行しやすい
 - （ログ解析時）指定するログファイルへの読取権限（`/var/log/nginx/` は root 所有のため、ログを `/tmp` にコピーするか、実行ユーザを `adm` 等に追加する運用を推奨）
 
 ## インストール
@@ -111,25 +112,31 @@ log_format combined '$remote_addr - $remote_user [$time_local] '
 
 ## サンプル
 
-~~同梱の `sample_access.log` は nginx COMBINED 形式のサンプルです。sitemap を用意したうえで解析のみ試す例:~~
-
-```bash
-# 事前に result/sitemap.json を用意している場合
-python -m log_fooot --analyze-only --log-path ./sample_access.log --output-dir ./result --sitemap ./result/sitemap.json
-# result/report.html をブラウザで開く
-```
+リポジトリに **`sample_access.log`** が無い、または作り直したい場合は、まず生成スクリプトを実行します。
 
 ### 大きなサンプルで試す（20 画面・15000 行）
 
 ```bash
 # 15000 行の sample_access.log と、20 画面だけのデモ用 sitemap を生成
-python scripts/generate_sample_log.py
+python3 scripts/generate_sample_log.py
 # デモ用 sitemap を渡すと、遷移図は 20 画面のみ。ログにだけあるパスは図の下に一覧表示される
-python -m log_fooot --analyze-only --log-path ./sample_access.log --output-dir ./result --sitemap ./scripts/sample_sitemap_demo.json
+python3 -m log_fooot --analyze-only \
+  --log-path ./sample_access.log \
+  --output-dir ./log-fooot-output \
+  --sitemap ./scripts/sample_sitemap_demo.json \
+  --lang ja
+# log-fooot-output/report.html をブラウザで開く
 ```
 
 - `scripts/generate_sample_log.py` は `sample_access.log` を上書きするほか、**`scripts/sample_sitemap_demo.json`**（上記 20 パスのみ）を出力します。ログの約 12% はサイトマップに無いパス（旧 URL・404 想定）が混ざります。
-- 既に手元の `result/sitemap.json` がある場合は、従来どおり `--sitemap ./result/sitemap.json` で解析できます。
+- 既に手元の `sitemap.json`（例: クロール済みの `./result/sitemap.json`）がある場合は、`--sitemap` にそのパスを指定して解析できます。
+
+```bash
+python3 -m log_fooot --analyze-only \
+  --log-path ./sample_access.log \
+  --output-dir ./result \
+  --sitemap ./result/sitemap.json
+```
 
 ## テスト
 
@@ -152,7 +159,7 @@ MIT License（[LICENSE](LICENSE)）
 
 ## 開発メモ（コントリビュート）
 
-このリポジトリでは、コミットメッセージに **Conventional Commits** 形式を採用しています。~~詳しくはルートにある `.cursorrules` を参照してください。~~
+このリポジトリでは、コミットメッセージに **Conventional Commits** 形式を採用しています。詳しくはルートの `.cursorrules` を参照してください。
 
 - **type の例**: `feat`, `fix`, `docs`, `refactor`, `test`, `chore` など  
 - **scope の例**: `cli`, `crawl`, `sessions`, `visualize`, `logparser`, `exclude`, `sample`, `docs`, `config`, `deps` など  
