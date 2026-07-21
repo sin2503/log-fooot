@@ -130,6 +130,22 @@ def _ua_counts(sessions: list[Session]) -> list[dict]:
     return [{"ua": ua, "count": c} for ua, c in sorted(counts.items(), key=lambda x: -x[1])]
 
 
+def _ip_counts(sessions: list[Session]) -> list[dict]:
+    """ユニーク IP ごとのリクエスト数・セッション数。
+
+    [{"ip": "...", "count": N, "sessions": M}, ...] をリクエスト数降順、同数なら IP 昇順で。
+    """
+    req_counts: dict[str, int] = defaultdict(int)
+    session_counts: dict[str, int] = defaultdict(int)
+    for s in sessions:
+        session_counts[s.ip] += 1
+        req_counts[s.ip] += len(s.steps)
+    return [
+        {"ip": ip, "count": req_counts[ip], "sessions": session_counts[ip]}
+        for ip in sorted(req_counts.keys(), key=lambda x: (-req_counts[x], x))
+    ]
+
+
 def _time_counts(sessions: list[Session]) -> list[dict]:
     """時刻（1時間単位）ごとのリクエスト数。 [{"hour": "YYYY-MM-DD HH:00", "count": N}, ...] を時刻昇順で。"""
     counts: dict[str, int] = defaultdict(int)
@@ -159,8 +175,15 @@ LANG = {
         "tab_inout": "In/Out",
         "card_filter_placeholder": "Filter by path or title...",
         "tab_ua": "UA List",
+        "tab_ip": "IP List",
         "tab_time": "Time chart",
         "tab_error": "Errors",
+        "ip_table_ip": "IP",
+        "ip_table_count": "Requests",
+        "ip_table_sessions": "Sessions",
+        "ip_table_google": "Google",
+        "ip_list_filter_placeholder": "Filter by IP...",
+        "ip_list_hint": "Unique visitor IPs ranked by request count. Use the Google link to look up an IP.",
         "error_panel_title": "HTTP {status} — {ip}",
         "error_panel_hint": "URLs that returned this HTTP status for this IP in the access log.",
         "error_table_path": "Path",
@@ -214,8 +237,15 @@ LANG = {
         "tab_inout": "IN/OUT",
         "card_filter_placeholder": "パスまたはタイトルでフィルタ...",
         "tab_ua": "UA一覧",
+        "tab_ip": "IP一覧",
         "tab_time": "時刻グラフ",
         "tab_error": "エラー",
+        "ip_table_ip": "IP",
+        "ip_table_count": "リクエスト数",
+        "ip_table_sessions": "セッション数",
+        "ip_table_google": "Google",
+        "ip_list_filter_placeholder": "IP でフィルタ...",
+        "ip_list_hint": "ユニークな閲覧者 IP をリクエスト数順に表示します。Google リンクから IP を検索できます。",
         "error_panel_title": "HTTP {status} — {ip}",
         "error_panel_hint": "アクセスログ上で、この IP がこのステータスで応答した URL です。",
         "error_table_path": "パス",
@@ -447,6 +477,8 @@ def render_html(
     excluded_paths_json = json.dumps(excluded_paths_list, ensure_ascii=False)
     ua_counts = _ua_counts(sessions)
     ua_counts_json = json.dumps(ua_counts, ensure_ascii=False)
+    ip_counts = _ip_counts(sessions)
+    ip_counts_json = json.dumps(ip_counts, ensure_ascii=False)
     time_counts = _time_counts(sessions)
     time_counts_json = json.dumps(time_counts, ensure_ascii=False)
     time_max = max((x["count"] for x in time_counts), default=1)
@@ -484,10 +516,17 @@ def render_html(
     tab_inout = t["tab_inout"]
     card_filter_placeholder = t["card_filter_placeholder"]
     tab_ua = t["tab_ua"]
+    tab_ip = t["tab_ip"]
     tab_time = t["tab_time"]
     tab_error = t["tab_error"]
     error_table_path = t["error_table_path"]
     error_table_count = t["error_table_count"]
+    ip_table_ip = t["ip_table_ip"]
+    ip_table_count = t["ip_table_count"]
+    ip_table_sessions = t["ip_table_sessions"]
+    ip_table_google = t["ip_table_google"]
+    ip_list_filter_placeholder = t["ip_list_filter_placeholder"]
+    ip_list_hint = t["ip_list_hint"]
     sidebar_exclude_title = t["sidebar_exclude_title"]
     sidebar_exclude_hint = t["sidebar_exclude_hint"]
     sidebar_add_placeholder = t["sidebar_add_placeholder"]
@@ -677,6 +716,22 @@ def render_html(
   .ua-table th {{ color: #7aa2f7; }}
   .ua-table td {{ color: #a9b1d6; }}
   .ua-table tr:hover td {{ background: #2a2b36; }}
+  .ip-list-toolbar {{ display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }}
+  .ip-list-filter {{ width: 100%; max-width: 280px; padding: 8px 12px; font-size: 0.875rem; font-family: ui-monospace, monospace; background: #1a1b26; border: 1px solid #414868; border-radius: 6px; color: #c0caf5; }}
+  .ip-list-filter::placeholder {{ color: #565f89; }}
+  .ip-list-filter:focus {{ outline: none; border-color: #7aa2f7; }}
+  .ip-list-hint {{ font-size: 0.75rem; color: #565f89; margin: 0 0 10px 0; }}
+  .ip-list-table-wrap {{ overflow: auto; max-height: min(65vh, 640px); border: 1px solid #414868; border-radius: 6px; }}
+  .ip-list-table {{ width: 100%; border-collapse: collapse; font-size: 0.8rem; }}
+  .ip-list-table th, .ip-list-table td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #414868; }}
+  .ip-list-table th {{ color: #7aa2f7; position: sticky; top: 0; background: #1a1b26; z-index: 1; }}
+  .ip-list-table td {{ color: #a9b1d6; }}
+  .ip-list-table tr:hover td {{ background: #2a2b36; }}
+  .ip-list-table .ip-list-ip {{ font-family: ui-monospace, monospace; }}
+  .ip-list-table .ip-list-num {{ text-align: right; font-variant-numeric: tabular-nums; color: #7aa2f7; width: 110px; }}
+  .ip-list-table th.ip-list-num {{ text-align: right; }}
+  .ip-list-google {{ color: #7aa2f7; font-size: 0.75rem; white-space: nowrap; }}
+  .ip-list-google:hover {{ text-decoration: underline; }}
   .time-chart {{ display: flex; flex-direction: column; gap: 6px; max-width: 800px; }}
   .time-chart-row {{ display: flex; align-items: center; gap: 12px; }}
   .time-chart-label {{ width: 140px; font-size: 0.75rem; font-family: ui-monospace, monospace; color: #565f89; flex-shrink: 0; }}
@@ -869,6 +924,7 @@ def render_html(
 <div class="tabs">
   <button type="button" class="tab-btn active" data-tab="transition">{tab_transition}</button>
   <button type="button" class="tab-btn" data-tab="inout">{tab_inout}</button>
+  <button type="button" class="tab-btn" data-tab="ip">{tab_ip}</button>
   <button type="button" class="tab-btn" data-tab="ua">{tab_ua}</button>
   <button type="button" class="tab-btn" data-tab="time">{tab_time}</button>
   <button type="button" class="tab-btn" data-tab="error">{tab_error}</button>
@@ -886,6 +942,23 @@ def render_html(
 </div>
 </div>
 {log_only_section_html}
+</div>
+<div id="tab-ip" class="tab-pane">
+  <p class="ip-list-hint">{ip_list_hint}</p>
+  <div class="ip-list-toolbar">
+    <input type="text" class="ip-list-filter" id="ip-list-filter" placeholder="{ip_list_filter_placeholder}" autocomplete="off"/>
+  </div>
+  <div class="ip-list-table-wrap">
+    <table class="ip-list-table" id="ip-list-table">
+      <thead><tr>
+        <th>{ip_table_ip}</th>
+        <th class="ip-list-num">{ip_table_count}</th>
+        <th class="ip-list-num">{ip_table_sessions}</th>
+        <th>{ip_table_google}</th>
+      </tr></thead>
+      <tbody id="ip-list-tbody"></tbody>
+    </table>
+  </div>
 </div>
 <div id="tab-ua" class="tab-pane">
   <table class="ua-table" id="ua-table">
@@ -952,6 +1025,7 @@ def render_html(
   var excludedIps = {excluded_ips_json};
   var excludedPaths = {excluded_paths_json};
   var uaCounts = {ua_counts_json};
+  var ipCounts = {ip_counts_json};
   var timeCounts = {time_counts_json};
   var timeMax = {time_max};
   var pathInOut = {path_inout_json};
@@ -1212,6 +1286,50 @@ def render_html(
       tr.appendChild(count);
       tbody.appendChild(tr);
     }});
+  }})();
+
+  (function initIpList() {{
+    var tbody = document.getElementById('ip-list-tbody');
+    var filterEl = document.getElementById('ip-list-filter');
+    if (!tbody) return;
+    var googleLabel = langStrings.ipFlowGoogleLink || 'Search on Google';
+
+    function renderRows(filterStr) {{
+      var q = (filterStr || '').trim().toLowerCase();
+      tbody.innerHTML = '';
+      (ipCounts || []).forEach(function(row) {{
+        if (q && String(row.ip || '').toLowerCase().indexOf(q) === -1) return;
+        var tr = document.createElement('tr');
+        var tdIp = document.createElement('td');
+        tdIp.className = 'ip-list-ip';
+        tdIp.textContent = row.ip;
+        var tdCount = document.createElement('td');
+        tdCount.className = 'ip-list-num';
+        tdCount.textContent = (row.count != null ? row.count : 0).toLocaleString();
+        var tdSessions = document.createElement('td');
+        tdSessions.className = 'ip-list-num';
+        tdSessions.textContent = (row.sessions != null ? row.sessions : 0).toLocaleString();
+        var tdGoogle = document.createElement('td');
+        var glink = document.createElement('a');
+        glink.className = 'ip-list-google';
+        glink.href = 'https://www.google.com/search?q=' + encodeURIComponent(row.ip);
+        glink.target = '_blank';
+        glink.rel = 'noopener noreferrer';
+        glink.textContent = googleLabel;
+        tdGoogle.appendChild(glink);
+        tr.appendChild(tdIp);
+        tr.appendChild(tdCount);
+        tr.appendChild(tdSessions);
+        tr.appendChild(tdGoogle);
+        tbody.appendChild(tr);
+      }});
+    }}
+
+    renderRows('');
+    if (filterEl) {{
+      filterEl.addEventListener('input', function() {{ renderRows(filterEl.value); }});
+      filterEl.addEventListener('keydown', function(e) {{ e.stopPropagation(); }});
+    }}
   }})();
 
   (function initTimeChart() {{
