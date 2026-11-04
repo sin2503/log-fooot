@@ -25,7 +25,7 @@ nginx の COMBINED アクセスログを IP ごとに解析し、サイト内の
 ## 必要環境
 
 - Python 3.9+
-- （クロール時）`requests` / `beautifulsoup4`（`pip install -r requirements.txt`）および対象サイトへの HTTP アクセス
+- （クロール時）`httpx[http2]` / `beautifulsoup4`（`pip install -r requirements.txt`）および対象サイトへの HTTP アクセス（HTTP/2 優先、未対応時は HTTP/1.1）
 - （`--analyze-only` のみ）上記の HTTP ライブラリは**インポートされない**ため、サンプルログだけ試す場合は venv なしの Python でも実行しやすい
 - （ログ解析時）指定するログファイルへの読取権限（`/var/log/nginx/` は root 所有のため、ログを `/tmp` にコピーするか、実行ユーザを `adm` 等に追加する運用を推奨）
 

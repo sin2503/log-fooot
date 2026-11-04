@@ -86,7 +86,7 @@ def crawl(
     Returns:
         path -> PageInfo の辞書（path は / 始まりの正規化パス）
     """
-    import requests
+    import httpx
 
     base_parsed = urlparse(base_url)
     base_netloc = base_parsed.netloc
@@ -102,55 +102,57 @@ def crawl(
     by_path: dict[str, PageInfo] = {}
     to_visit: list[str] = [urljoin(base_url, "/")]
 
-    while to_visit and len(by_path) < max_pages:
-        url = to_visit.pop(0)
-        if url in seen:
-            continue
-        seen.add(url)
+    # http2=True: ALPN で HTTP/2 を優先（未対応なら HTTP/1.1 にフォールバック）
+    with httpx.Client(
+        http2=True,
+        headers=default_headers,
+        timeout=timeout,
+        follow_redirects=True,
+    ) as client:
+        while to_visit and len(by_path) < max_pages:
+            url = to_visit.pop(0)
+            if url in seen:
+                continue
+            seen.add(url)
 
-        path = _path_from_url(url)
-        if exclude_paths and is_excluded_path(path, exclude_paths):
-            continue
-        if path in by_path:
-            continue
+            path = _path_from_url(url)
+            if exclude_paths and is_excluded_path(path, exclude_paths):
+                continue
+            if path in by_path:
+                continue
 
-        try:
-            resp = requests.get(
-                url,
-                headers=default_headers,
-                timeout=timeout,
-                allow_redirects=True,
-            )
-            resp.raise_for_status()
-        except requests.RequestException:
-            by_path[path] = PageInfo(url=url, path=path, title="(fetch failed)", links_out=[])
+            try:
+                resp = client.get(url)
+                resp.raise_for_status()
+            except httpx.HTTPError:
+                by_path[path] = PageInfo(url=url, path=path, title="(fetch failed)", links_out=[])
+                if delay_seconds > 0:
+                    time.sleep(delay_seconds)
+                continue
+
+            soup = _soup_from_response_text(resp.text)
+            title_tag = soup.find("title")
+            title = (title_tag.get_text(strip=True) if title_tag else "") or path or "/"
+
+            links_out: list[str] = []
+            for a in soup.find_all("a", href=True):
+                href = a["href"].strip()
+                if not href or href.startswith("#") or href.startswith("mailto:") or href.startswith("javascript:"):
+                    continue
+                absolute = _normalize_url(url, href)
+                if not _same_origin(base_netloc, absolute):
+                    continue
+                absolute_path = _path_from_url(absolute)
+                if exclude_paths and is_excluded_path(absolute_path, exclude_paths):
+                    continue
+                full_url = urljoin(base_url, absolute_path)
+                links_out.append(absolute_path)
+                if full_url not in seen and absolute_path not in by_path:
+                    to_visit.append(full_url)
+
+            by_path[path] = PageInfo(url=url, path=path, title=title, links_out=links_out)
+
             if delay_seconds > 0:
                 time.sleep(delay_seconds)
-            continue
-
-        soup = _soup_from_response_text(resp.text)
-        title_tag = soup.find("title")
-        title = (title_tag.get_text(strip=True) if title_tag else "") or path or "/"
-
-        links_out: list[str] = []
-        for a in soup.find_all("a", href=True):
-            href = a["href"].strip()
-            if not href or href.startswith("#") or href.startswith("mailto:") or href.startswith("javascript:"):
-                continue
-            absolute = _normalize_url(url, href)
-            if not _same_origin(base_netloc, absolute):
-                continue
-            absolute_path = _path_from_url(absolute)
-            if exclude_paths and is_excluded_path(absolute_path, exclude_paths):
-                continue
-            full_url = urljoin(base_url, absolute_path)
-            links_out.append(absolute_path)
-            if full_url not in seen and absolute_path not in by_path:
-                to_visit.append(full_url)
-
-        by_path[path] = PageInfo(url=url, path=path, title=title, links_out=links_out)
-
-        if delay_seconds > 0:
-            time.sleep(delay_seconds)
 
     return by_path
