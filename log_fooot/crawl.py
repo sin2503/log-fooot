@@ -26,10 +26,14 @@ class PageInfo:
 
 
 def _normalize_url(base: str, url: str) -> str:
-    """URL を絶対化し、フラグメントを除いて正規化する。"""
+    """URL を絶対化し、フラグメントを除いて正規化する。
+
+    相対リンク解決のため、base がディレクトリなら末尾 `/` を維持したまま
+    urljoin する（`/ft8` + `howto/` → `/howto/` になるのを防ぐ）。
+    """
     u = urljoin(base, url)
     parsed = urlparse(u)
-    # フラグメント除去
+    # フラグメント除去（path の末尾 `/` は維持）
     normalized = urlunparse(
         (parsed.scheme, parsed.netloc, parsed.path or "/", parsed.params, parsed.query, "")
     )
@@ -39,6 +43,26 @@ def _normalize_url(base: str, url: str) -> str:
 def _same_origin(base_netloc: str, url: str) -> bool:
     parsed = urlparse(url)
     return parsed.netloc == base_netloc or (parsed.netloc == "" and url.startswith("/"))
+
+
+def _directory_base_url(url: str) -> str:
+    """
+    相対リンク解決用に、URL をディレクトリとして扱う形にする。
+
+    `/ft8` のように末尾スラッシュが無いと urljoin はファイル扱いし、
+    `howto/` が `/howto/` に潰れる。パスに拡張子が無い場合は `/` を付ける。
+    """
+    parsed = urlparse(url)
+    path = parsed.path or "/"
+    if path.endswith("/") or path == "/":
+        return url
+    last = path.rsplit("/", 1)[-1]
+    if "." in last:
+        # /page.html のようなファイル URL はそのまま
+        return url
+    return urlunparse(
+        (parsed.scheme, parsed.netloc, path + "/", parsed.params, parsed.query, parsed.fragment)
+    )
 
 
 def _soup_from_response_text(text: str):
@@ -114,7 +138,6 @@ def crawl(
 
     base_parsed = urlparse(base_url)
     base_netloc = base_parsed.netloc
-    base_scheme = base_parsed.scheme or "https"
 
     default_headers = {
         "User-Agent": "log-fooot/0.1 (nginx log analyzer; +https://github.com)",
@@ -162,29 +185,40 @@ def crawl(
                     time.sleep(delay_seconds)
                 continue
 
+            # リダイレクト後 URL を基準にする（/ft8 → /ft8/ など）
+            page_url = str(resp.url)
+            seen.add(page_url)
+            path = _path_from_url(page_url)
+            if exclude_paths and is_excluded_path(path, exclude_paths):
+                continue
+            if path in by_path:
+                continue
+
             soup = _soup_from_response_text(_html_text_from_response(resp))
             title_tag = soup.find("title")
             title = (title_tag.get_text(strip=True) if title_tag else "") or path or "/"
 
+            # 相対リンクはディレクトリ基準で解決（末尾 / 無しだと親パスが欠ける）
+            link_base = _directory_base_url(page_url)
             links_out: list[str] = []
             for a in soup.find_all("a", href=True):
                 href = a["href"].strip()
                 if not href or href.startswith("#") or href.startswith("mailto:") or href.startswith("javascript:"):
                     continue
-                absolute = _normalize_url(url, href)
+                absolute = _normalize_url(link_base, href)
                 if not _same_origin(base_netloc, absolute):
                     continue
                 absolute_path = _path_from_url(absolute)
                 if exclude_paths and is_excluded_path(absolute_path, exclude_paths):
                     continue
-                full_url = urljoin(base_url, absolute_path)
                 links_out.append(absolute_path)
-                if full_url not in seen and absolute_path not in by_path:
-                    to_visit.append(full_url)
+                # path を付け直さず、正規化済み絶対 URL をそのまま辿る（末尾 / を維持）
+                if absolute not in seen and absolute_path not in by_path:
+                    to_visit.append(absolute)
 
             # 出現順を保ったまま重複除去
             links_out = list(dict.fromkeys(links_out))
-            by_path[path] = PageInfo(url=url, path=path, title=title, links_out=links_out)
+            by_path[path] = PageInfo(url=page_url, path=path, title=title, links_out=links_out)
 
             if delay_seconds > 0:
                 time.sleep(delay_seconds)
