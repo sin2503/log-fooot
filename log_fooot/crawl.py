@@ -60,6 +60,30 @@ def _soup_from_response_text(text: str):
     return BeautifulSoup(text, "html.parser")
 
 
+def _html_text_from_response(resp) -> str:
+    """
+    レスポンス本文を HTML 文字列にする。
+
+    Content-Type の charset が latin-1 / ISO-8859-1 でも、実体が UTF-8 の
+    サイトが多い。httpx の resp.text だと誤デコードで文字化けするため、
+    UTF-8 を優先し、失敗時のみヘッダの charset にフォールバックする。
+    """
+    content = getattr(resp, "content", b"") or b""
+    if not content:
+        return ""
+    if content.startswith(b"\xef\xbb\xbf"):
+        return content.decode("utf-8-sig")
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    encoding = getattr(resp, "charset_encoding", None) or getattr(resp, "encoding", None) or "utf-8"
+    try:
+        return content.decode(encoding)
+    except (LookupError, UnicodeDecodeError):
+        return content.decode("utf-8", errors="replace")
+
+
 def _path_from_url(url: str) -> str:
     parsed = urlparse(url)
     path = parsed.path or "/"
@@ -124,13 +148,21 @@ def crawl(
             try:
                 resp = client.get(url)
                 resp.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                code = e.response.status_code if e.response is not None else "?"
+                by_path[path] = PageInfo(
+                    url=url, path=path, title=f"(fetch failed: {code})", links_out=[]
+                )
+                if delay_seconds > 0:
+                    time.sleep(delay_seconds)
+                continue
             except httpx.HTTPError:
                 by_path[path] = PageInfo(url=url, path=path, title="(fetch failed)", links_out=[])
                 if delay_seconds > 0:
                     time.sleep(delay_seconds)
                 continue
 
-            soup = _soup_from_response_text(resp.text)
+            soup = _soup_from_response_text(_html_text_from_response(resp))
             title_tag = soup.find("title")
             title = (title_tag.get_text(strip=True) if title_tag else "") or path or "/"
 
@@ -150,6 +182,8 @@ def crawl(
                 if full_url not in seen and absolute_path not in by_path:
                     to_visit.append(full_url)
 
+            # 出現順を保ったまま重複除去
+            links_out = list(dict.fromkeys(links_out))
             by_path[path] = PageInfo(url=url, path=path, title=title, links_out=links_out)
 
             if delay_seconds > 0:
